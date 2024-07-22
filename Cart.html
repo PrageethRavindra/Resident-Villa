@@ -1,0 +1,103 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Resident Villa</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- <link rel="manifest" href="site.webmanifest"> -->
+    <link rel="shortcut icon" type="image/x-icon" href="img/favicon.png">
+    <!-- Place favicon.ico in the root directory -->
+
+    <!-- CSS here -->
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/owl.carousel.min.css">
+    <link rel="stylesheet" href="css/magnific-popup.css">
+    <link rel="stylesheet" href="css/font-awesome.min.css">
+    <link rel="stylesheet" href="css/themify-icons.css">
+    <link rel="stylesheet" href="css/nice-select.css">
+    <link rel="stylesheet" href="css/flaticon.css">
+    <link rel="stylesheet" href="css/gijgo.css">
+    <link rel="stylesheet" href="css/animate.css">
+    <link rel="stylesheet" href="css/Cart.css">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- <link rel="stylesheet" href="css/responsive.css"> -->
+    </head>
+    <body>
+            <!-- The app is transferred from the Mavo website: https://mavo.io/demos/eshop/ -->
+    <div mv-app="eshop"
+    mv-storage="https://github.com/mavoweb/mavo.io/demos/eshop/products.json"
+    mv-bar="no-login">
+    <h1>Products</h1>
+
+    <article property="product" mv-multiple>
+    <img property="image" alt="" />
+    <span property="name"></span>
+    <!-- Dot notationa because cart is a separate Mavo app, due to separate storage (local) -->
+    <button mv-action="add(product, cart.product)" class="add-to-cart">Add to cart</button>
+    <span property="amount" class="price"></span>
+    </article>
+
+    <footer>
+    Products from <a href="http://theworstthingsforsale.com/">The Worst Things For Sale</a> &bull; <a href="?login" class="mv-login">Admin login</a>
+    </footer>
+    </div>
+
+    <form action="https://www.paypal.com/cgi-bin/webscr"
+    method="post" target="_blank"
+    mv-app="cart" mv-storage="local"
+    mv-autosave="0" mv-mode="read">
+    <h1>My Cart</h1>
+
+    <!-- required by PayPal -->
+    <input type="hidden" name="cmd" value="_cart">
+    <input type="hidden" name="upload" value="1">
+    <input type="hidden" name="business" value="actions@mavo.io">
+    <!-- Sandbox account -->
+    <input type="hidden" name="currency_code" value="USD">
+
+    <table>
+    <colgroup>
+        <col class="remove"></col>
+        <col class="product"></col>
+        <col class="quantity"></col>
+        <col class="price"></col>
+        <col class="subtotal"></col>
+    </colgroup>
+    <thead>
+        <tr>
+            <th></th>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tr property="product" mv-multiple mv-initial-items="0">
+        <!-- Anything with a name attribute is sent to PayPal -->
+        <td><button type="button" title="Remove from cart" mv-action="delete(product)" class="remove">❌</button></td>
+        <td property="name"></td>
+        <td><input type="number" property="quantity" value="1" min="1" name="quantity_[$index + 1]"></td>
+        <td class="price" property="amount"></td>
+        <td>
+            <span property="subtotal" class="price">[amount * quantity]</span>
+            <input type="hidden" name="item_name_[$index + 1]" value="[name]">
+            <input type="hidden" name="amount_[$index + 1]" value="[amount]">
+        </td>
+    </tr>
+    <tr mv-if="count(product) = 0" class="empty-cart-message">
+        <td colspan="4">(Cart is empty)</td>
+        <td></td>
+    </tr>
+    <tfoot>
+        <tr>
+            <td colspan="4">Total</td>
+            <td class="price">[sum(subtotal)]</td>
+        </tr>
+    </tfoot>
+    </table>
+    <button disabled="[count(product) = 0]" class="checkout">Check out with PayPal</button>
+    </form>
+    </body>
+</html>

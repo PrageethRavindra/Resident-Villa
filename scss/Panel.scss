@@ -1,0 +1,286 @@
+@import "compass/css3";
+
+@import url(http://weloveiconfonts.com/api/?family=entypo);
+
+/* entypo */
+[class*="entypo-"]:before {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  text-align: center;
+  font-family: 'entypo', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  color: #483430;
+  background: #E36A5B;
+}
+.side-panel {
+  padding: 30px 0;
+  
+  &:nth-child(2n) {
+    background: #483430;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  > ul {
+    
+    > li {
+      &:first-child {
+        border-top-right-radius: 3px;
+        
+        a {
+          padding-top: 13px;
+        }
+      }
+      &:last-child {
+        border-bottom-right-radius: 3px;
+        a {
+          padding-bottom: 13px;
+        }
+      }
+    }
+    ul {
+      width: 150px;
+      padding-left: 10px;
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 100%;
+      
+      li {
+        &:first-child {
+          border-top-left-radius: 3px;
+          border-top-right-radius: 3px;
+          border-right-color: #efefef;
+          
+          &:before {
+            $size: 5px;
+            $color: #efefef;
+            position: absolute;
+            content: "";
+            width: 0;
+            height: 0;
+            top: 50%;
+            right: 100%;
+            margin-top: $size * -1;
+            border-top: $size solid transparent;
+            border-bottom: $size solid transparent; 
+            border-right:$size solid $color;
+            border-right-color: inherit;
+          }
+          
+          &:hover {
+            border-right-color: #fff;
+          }
+        }
+        &:last-child {
+          border-bottom-left-radius: 3px;
+          border-bottom-right-radius: 3px;
+        }
+      }
+    }
+  }
+  li {
+    position: relative;
+    background: #efefef;
+    
+    &:hover {
+      background: #fff;
+      
+      > ul {
+        display: block;
+      }
+    }
+  }
+  a {
+    display: inline-block;
+    padding: 8px 15px;
+    cursor: pointer;
+  }
+}
+.a {
+  > ul {
+    width: 150px;
+    transform: translateX(-110px);
+  }
+  span[class*="entypo-"] {
+    display: inline-block;
+    position: relative;
+    left: 105px;
+  }
+  .menu-item {
+    $color: #483430;
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    display: block;
+    padding: 8px 13px;
+    color: #efefef;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    transform: translate(-100%, -50%) translateZ(0);
+    background: $color;
+    border-radius: 3px;
+    border-right-color: $color;
+    transition: all .3s ease-in-out;
+    z-index: -2;
+    
+    &:before {
+      $size: 5px;
+      $color: #efefef;
+      position: absolute;
+      content: "";
+      width: 0;
+      height: 0;
+      top: 50%;
+      right: 100%;
+      margin-top: $size * -1;
+      border-top: $size solid transparent;
+      border-bottom: $size solid transparent; 
+      border-right:$size solid $color;
+      border-right-color: inherit;
+    }
+  }
+  li:hover .menu-item {
+    transform: translate(10px, -50%);
+  }
+  > ul {
+    ul {
+      display: block;
+      opacity: 0;
+      transform: translate(-100%);
+      transition: all .3s ease-in-out;
+      z-index: -1;
+    }
+    > li:first-child:hover .menu-item {
+      transform: translate(-100%, -50%);
+    }
+  }
+  li:hover ul {
+    opacity: 1;
+    transform: translate(0);
+  }
+}
+.b {
+  li {
+    [class*="entypo-"] {
+      display: inline-block;
+      position: relative;
+      left: 105px;
+      transform: translateX(0);
+      transition: all .3s ease-in-out;
+      transition-delay: .1s;
+    }
+  }
+  .menu-item {
+    display: inline-block;
+    opacity: 0;
+    transition: opacity .3s ease-in-out;
+  }
+  > ul {
+    position: relative;
+    left: -110px;
+    transform: translate(0) translateZ(0);
+    width: 150px;
+    transition: transform .3s .1s ease-in-out;
+    
+    &:hover {
+      transform: translateX(110px);
+      transition: all .3s ease-in-out;
+      
+      li {
+        [class*="entypo-"] {
+          transform: translateX(-110px);
+          transition-delay: 0;
+        }
+      }
+      .menu-item {
+        opacity: 1;
+        transition: opacity .3s .2s ease-in-out;
+      }
+    }
+  }
+  > ul {
+    ul {
+      display: block;
+      opacity: 0;
+      transform: translate(-100%);
+      transition: all .3s ease-in-out;
+      z-index: -1;
+    }
+  }
+  li:hover ul {
+    opacity: 1;
+    transform: translate(0);
+  }
+}
+.c {
+  ul {
+    width: 150px;
+  }
+  > ul {
+    transform: translateX(-110px) translateZ(0);
+    transition: all .3s ease-in-out;
+    
+    &:hover {
+      transform: translateX(40px);
+    }
+  }
+  > ul > li > a [class*="entypo-"] { // Bad.
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    width: 40px;
+    background: #efefef;
+    border-right: 1px solid #483430;
+    transform: translateX(110px);
+    transition: transform .3s ease-in-out;
+    
+    &:before {
+      position: absolute;
+      width: 100%;
+      height: auto;
+      margin: 0;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+  > ul > li:hover > a [class*="entypo-"] { // Bad.
+    background: #fff;
+  }
+  > ul:hover > li > a [class*="entypo-"] { // Bad.
+    transform: translateX(-40px);
+  }
+  > ul {
+    ul {
+      display: block;
+      opacity: 0;
+      transform: translate(-100%);
+      transition: all .3s ease-in-out;
+      z-index: -1;
+    }
+  }
+  li:hover ul {
+    opacity: 1;
+    transform: translate(0);
+  }
+}
+.d {
+  ul {
+    width: 150px;
+  }
+}
