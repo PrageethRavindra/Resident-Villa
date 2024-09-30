@@ -1,3 +1,45 @@
+<?php
+// Establish connection to MySQL database
+$servername = "localhost:3305"; // Change as per your configuration
+$username = "root"; // Change as per your configuration
+$password = "123@prageeth"; // Change as per your configuration
+$dbname = "resident_villa"; // Change as per your configuration
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+if (isset($_POST['email']) && isset($_POST['vehicle_type'])) {
+    // Retrieve email and password from the form
+    $email = $_POST['email'];
+    $password = $_POST['vehicle_type'];
+
+// Retrieve values from POST data
+$email = $_POST['email'];
+$fname = $_POST['fname'];
+$lname = $_POST['lname'];
+$vehicleType = $_POST['vehicle_type'];
+$phone = $_POST['phone'];
+$VehicleNo = $_POST['VehicleNo'];
+
+// SQL query to insert data into the database
+$sql = "INSERT INTO drivertb (email, fname, lname, vehicletype, phone, VehicleNo) VALUES ('$email', '$fname', '$lname', '$vehicleType', '$phone', '$VehicleNo')";
+
+
+if ($conn->query($sql) === TRUE) {
+    // If record inserted successfully
+    echo "<script>alert('New record created successfully');</script>";
+    echo "<script>sendEmail('".$email."','".$fname."');</script>";
+} else {
+    // If an error occurred
+    echo "<script>alert('Error: " . $sql . "\\n" . $conn->error . "');</script>";
+}
+}
+$conn->close();
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -99,7 +141,7 @@
             <select name="vehicle_type" required>
                 <option value="" disabled selected>Select Vehicle Type</option>
                 <option value="car">Car</option>
-                <option value="truck">Tuk</option>
+                <option value="tuck">Tuk</option>
                 <option value="van">Van</option>
             </select>
         
@@ -145,44 +187,3 @@ to_email: to_email,
 </body>
 </html>
 
-<?php
-// Establish connection to MySQL database
-$servername = "localhost:3305"; // Change as per your configuration
-$username = "prageeth"; // Change as per your configuration
-$password = "123@Admin"; // Change as per your configuration
-$dbname = "resident_villa"; // Change as per your configuration
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-if (isset($_POST['email']) && isset($_POST['vehicle_type'])) {
-    // Retrieve email and password from the form
-    $email = $_POST['email'];
-    $password = $_POST['vehicle_type'];
-
-// Retrieve values from POST data
-$email = $_POST['email'];
-$fname = $_POST['fname'];
-$lname = $_POST['lname'];
-$vehicleType = $_POST['vehicle_type'];
-$phone = $_POST['phone'];
-$VehicleNo = $_POST['VehicleNo'];
-
-// SQL query to insert data into the database
-$sql = "INSERT INTO drivertb (email, fname, lname, vehicletype, phone, VehicleNo) VALUES ('$email', '$fname', '$lname', '$vehicleType', '$phone', '$VehicleNo')";
-
-
-if ($conn->query($sql) === TRUE) {
-    // If record inserted successfully
-    echo "<script>alert('New record created successfully');</script>";
-    echo "<script>sendEmail('".$email."','".$fname."');</script>";
-} else {
-    // If an error occurred
-    echo "<script>alert('Error: " . $sql . "\\n" . $conn->error . "');</script>";
-}
-}
-$conn->close();
-?>

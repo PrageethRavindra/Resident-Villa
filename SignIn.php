@@ -1,3 +1,74 @@
+<?php
+// Include the class file (make sure this path is correct based on your project structure)
+require_once __DIR__ .'./db/DatabaseConnection.php';
+
+// Create an instance of the DatabaseConnection class
+$db = new DatabaseConnection();
+
+// You can now access the connection via $db->conn
+$conn = $db->conn;
+
+// Backend validation for login form
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (!empty($_POST['email']) && !empty($_POST['password'])) {
+        
+        // Sanitize inputs
+        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+        $password = $_POST['password'];
+
+        // Validate email format
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            
+            // Prepare a SQL statement to check user credentials
+            $sql = "SELECT email, password FROM signup WHERE email=?";
+            $stmt = $conn->prepare($sql);
+
+            if ($stmt) {
+                // Bind parameter to the prepared statement
+                $stmt->bind_param("s", $email);
+
+                // Execute the prepared statement
+                $stmt->execute();
+
+                // Store result
+                $result = $stmt->get_result();
+
+                // Check if there is a matching user
+                if ($result->num_rows > 0) {
+                    $user = $result->fetch_assoc();
+
+                    // Verify the password (use password_verify for hashed passwords)
+                    if (password_verify($password, $user['password'])) {
+                        echo "<script>alert('Login successful. Welcome to Resident Villa');</script>";
+                        session_start();
+                        $_SESSION['email'] = $email;
+                        header("Location: index.php");
+                        exit();
+                    } else {
+                        echo "<script>alert('Login failed. Incorrect email or password.');</script>";
+                    }
+                } else {
+                    echo "<script>alert('Login failed. Incorrect email or password.');</script>";
+                }
+
+                // Close statement
+                $stmt->close();
+            } else {
+                echo "Error: " . $conn->error;
+            }
+        } else {
+            echo "<script>alert('Invalid email format.');</script>";
+        }
+    } else {
+        echo "<script>alert('Please fill in all required fields.');</script>";
+    }
+}
+
+// Close the connection when done
+$db->closeConnection();
+?>
+
+
 
 <html>
 	<head>
@@ -28,136 +99,78 @@
 		<!-- <link rel="stylesheet" href="css/responsive.css"> -->
 	</head>
 	
-	<body>
-
-		
-<div class="container" id="container">
 	
-	<div class="form-container sign-in-container">
-		<form  action="#" method="post">
-			<h1>Sign in</h1>
-			<div class="social-container">
-				<a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-				<a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-				<a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
-			</div>
-			
-			<span>or use your account</span>
-			<input  name="email" type="email" placeholder="Email" />
-			<input  name="password" type="password" placeholder="Password" />
-			<a href="#">Forgot your password?</a>
-			<button>Sign In</button>
-			<a class="adminlogin" href="adminlogin.php"><b>Login As Admin</b></a>
-		</form>
-	</div>
-	<div class="overlay-container">
-		<div class="overlay">
-			<div class="overlay-panel overlay-left">
-				<h1>Welcome Back!</h1>
-				<p>To keep connected with us please login with your personal info</p>
-				<button class="ghost" id="signIn">Sign In</button>
-			</div>
-			<div class="overlay-panel overlay-right">
-				<h1>Hello, Customer!</h1>
-				<p>Enter your personal details and start journey with us</p>
-				<button class="ghost" id="signUp" onclick="redirectToSignUpPage()">Sign Up</button>
+<body>
+    <div class="container" id="container">
+        <div class="form-container sign-in-container">
+            <form action="login.php" method="post" onsubmit="return validateLoginForm();">
+                <h1>Sign in</h1>
+                <div class="social-container">
+                    <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
+                    <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+                </div>
+                <span>or use your account</span>
+                
+                <!-- Email input field with validation -->
+                <input id="email" name="email" type="email" placeholder="Email" required />
+                
+                <!-- Password input field with validation -->
+                <input id="password" name="password" type="password" placeholder="Password" required />
+                
+                <a href="#">Forgot your password?</a>
+                <button type="submit">Sign In</button>
+                <a class="adminlogin" href="adminlogin.php"><b>Login As Admin</b></a>
+            </form>
+        </div>
+        <div class="overlay-container">
+            <div class="overlay">
+                <div class="overlay-panel overlay-left">
+                    <h1>Welcome Back!</h1>
+                    <p>To keep connected with us, please login with your personal info</p>
+                    <button class="ghost" id="signIn">Sign In</button>
+                </div>
+                <div class="overlay-panel overlay-right">
+                    <h1>Hello, Customer!</h1>
+                    <p>Enter your personal details and start your journey with us</p>
+                    <button class="ghost" id="signUp" onclick="redirectToSignUpPage()">Sign Up</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-			</div>
-		</div>
-	</div>
-</div>
+    <footer>
+        <p>Created with <i class="fa fa-heart"></i> by <a target="_blank" href="https://florin-pop.com">Florin Pop</a></p>
+    </footer>
 
-<footer>
-	<p>
-		Created with <i class="fa fa-heart"></i> by
-		<a target="_blank" href="https://florin-pop.com">Florin Pop</a>
-		- Read how I created this and how you can join the challenge
-		<a target="_blank" href="https://www.florin-pop.com/blog/2019/03/double-slider-sign-in-up-form/">here</a>.
-	</p>
-</footer>
-<script>
-    function redirectToSignUpPage() {
-        // Redirect to the desired web page
-        window.location.href = "Register.php";
-    }
-</script>
+    <!-- JavaScript for frontend validation -->
+    <script>
+        function validateLoginForm() {
+            var email = document.getElementById("email").value;
+            var password = document.getElementById("password").value;
+            var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;  // Regular expression for email validation
 
+            if (email == "" || password == "") {
+                alert("Please fill in both email and password.");
+                return false;
+            }
 
-	</body>
+            if (!emailPattern.test(email)) {
+                alert("Please enter a valid email address.");
+                return false;
+            }
+
+            return true;  // If all validation passes
+        }
+
+        function redirectToSignUpPage() {
+            window.location.href = "Register.php";
+        }
+    </script>
+
+</body>
 </html>
 
 
 
 
-<?php
-// Establish connection to MySQL database
-$servername = "localhost:3305"; // Change as per your configuration
-$username = "prageeth"; // Change as per your configuration
-$password = "123@Admin"; // Change as per your configuration
-$dbname = "resident_villa"; // Change as per your configuration
-
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-if (isset($_POST['email']) && isset($_POST['password'])) {
-    // Retrieve email and password from the form
-    $email = $_POST['email'];
-    $password = $_POST['password'];
-// Retrieve email and password from the form
-$email = $_POST['email'];
-$password = $_POST['password'];
-
-// Prepare a SQL statement
-$sql = "SELECT email, password FROM signup WHERE email=?";
-$stmt = $conn->prepare($sql);
-
-if ($stmt) {
-    // Bind parameter to the prepared statement
-    $stmt->bind_param("s", $email);
-
-    // Execute the prepared statement
-    $stmt->execute();
-
-    // Store result
-    $result = $stmt->get_result();
-
-    // Check if there is a matching user
-    if ($result->num_rows > 0) {
-        // Fetch the user's details
-        $user = $result->fetch_assoc();
-
-        // Verify password
-        if ($password == $user['password']) {
-            // Password is correct, login successful
-			echo "<script>alert('Login successful. Welcome to Resident Villa');</script>";
-			session_start();
-
-// Set session variables
-$_SESSION['email'] = $email;
-
-			header("Location: index.php");
-        exit(); // Ensure that script execution stops after redirect
-            // You can redirect the user to another page here if needed
-        } else {
-            // Password is incorrect
-			echo "<script>alert('Login failed. Please check your email and password.');</script>";
-        }
-    } else {
-        // No matching user found
-		echo "<script>alert('Login failed. Please check your email and password.');</script>";
-    }
-
-    // Close statement
-    $stmt->close();
-} else {
-    // Error in preparing the statement
-    echo "Error: " . $conn->error;
-}
-}
-// Close connection
-$conn->close();
-?>

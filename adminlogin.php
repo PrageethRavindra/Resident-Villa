@@ -1,8 +1,8 @@
 <?php
 // Establish connection to MySQL database
 $servername = "localhost:3305"; // Change as per your configuration
-$username = "prageeth"; // Change as per your configuration
-$password = "123@Admin"; // Change as per your configuration
+$username = "root"; // Change as per your configuration
+$password = "123@prageeth"; // Change as per your configuration
 $dbname = "resident_villa"; // Change as per your configuration
 
 // Create connection

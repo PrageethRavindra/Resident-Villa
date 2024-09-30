@@ -149,8 +149,8 @@
 								<h5 class="card-title"></h5>
 								<?php
                                     $servername = "localhost:3305";
-                                    $username = "prageeth";
-                                    $password = "123@Admin";
+                                    $username = "root";
+                                    $password = "prageeth";
                                     $dbname = "resident_villa";
                                     
                                     $conn = new mysqli($servername, $username, $password, $dbname);

@@ -120,8 +120,8 @@ to_email: to_email,
 
 <?php
 $servername = "localhost:3305";
-$username = "prageeth";
-$password = "123@Admin";
+$username = "root";
+$password = "prageeth";
 $dbname = "resident_villa";
 
 $conn = new mysqli($servername, $username, $password, $dbname);
@@ -140,7 +140,7 @@ if (!empty($_POST['fname']) && !empty($_POST['email'])) {
     $email = $conn->real_escape_string($_POST['email']);
     $packageType = isset($_POST['plan']) ? $conn->real_escape_string($_POST['plan']) : '';
 
-    $stmt = $conn->prepare("INSERT INTO ridetb (vehicleType, pickUp, `drop`, packageType, PickupDate, DropDate, Fname, Email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO ridetb (vehicleType, pickUp, `dropOff`, packageType, PickupDate, DropDate, Fname, Email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssssss", $vehicleType, $pickup, $drop, $packageType, $pickupDate, $dropDate, $fname, $email);
 
     if ($stmt->execute()) {

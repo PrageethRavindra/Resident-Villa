@@ -1,4 +1,72 @@
 
+<?php
+// Include the class file for the database connection
+require_once __DIR__ . './db/DatabaseConnection.php';
+
+// Create an instance of the DatabaseConnection class
+$db = new DatabaseConnection();
+
+// You can now access the connection via $db->conn
+$conn = $db->conn;
+
+// Backend validation for the registration form
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Ensure all required fields are filled
+    if (!empty($_POST['email']) && !empty($_POST['fname']) && !empty($_POST['lname']) && !empty($_POST['country']) && !empty($_POST['phone']) && !empty($_POST['password'])) {
+        
+        // Sanitize and validate inputs
+        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+        $fname = filter_var($_POST['fname'], FILTER_SANITIZE_STRING);
+        $lname = filter_var($_POST['lname'], FILTER_SANITIZE_STRING);
+        $country = filter_var($_POST['country'], FILTER_SANITIZE_STRING);
+        $phone = filter_var($_POST['phone'], FILTER_SANITIZE_STRING);
+        $password = $_POST['password'];
+
+        // Validate email format
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            // Hash the password for security before inserting it into the database
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+            // Prepare the SQL query for insertion
+            $sql = "INSERT INTO signup (email, fname, lname, country, phone, password) VALUES (?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+
+            if ($stmt) {
+                // Bind the parameters to the prepared statement
+                $stmt->bind_param("ssssss", $email, $fname, $lname, $country, $phone, $hashedPassword);
+
+                // Execute the query
+                if ($stmt->execute()) {
+                    // Notify the user of success
+                    echo "<script>alert('Registration successful.');</script>";
+                    // Optionally, send an email (if you have a function set up for this)
+                    echo "<script>sendEmail('$email', '$fname');</script>";
+                } else {
+                    // Handle any errors that occur during insertion
+                    echo "<script>alert('Error: " . $stmt->error . "');</script>";
+                }
+
+                // Close the prepared statement
+                $stmt->close();
+            } else {
+                // Handle preparation errors
+                echo "Error: " . $conn->error;
+            }
+        } else {
+            // If the email format is invalid
+            echo "<script>alert('Invalid email format.');</script>";
+        }
+    } else {
+        // If any required fields are missing
+        echo "<script>alert('Please fill all required fields.');</script>";
+    }
+}
+
+// Close the connection when done
+$db->closeConnection();
+?>
+
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -115,44 +183,3 @@ to_email: to_email,
 </body>
 </html>
 
-<?php
-// Establish connection to MySQL database
-$servername = "localhost:3305"; // Change as per your configuration
-$username = "prageeth"; // Change as per your configuration
-$password = "123@Admin"; // Change as per your configuration
-$dbname = "resident_villa"; // Change as per your configuration
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-if (isset($_POST['email']) && isset($_POST['country'])) {
-    // Retrieve email and password from the form
-    $email = $_POST['email'];
-    $password = $_POST['country'];
-
-// Retrieve values from POST data
-$email = $_POST['email'];
-$fname = $_POST['fname'];
-$lname = $_POST['lname'];
-$country = $_POST['country'];
-$phone = $_POST['phone'];
-$password = $_POST['password'];
-
-// SQL query to insert data into the database
-$sql = "INSERT INTO signup (email, fname, lname, country, phone, password) VALUES ('$email', '$fname', '$lname', '$country', '$phone', '$password')";
-
-
-if ($conn->query($sql) === TRUE) {
-    // If record inserted successfully
-    echo "<script>alert('New record created successfully');</script>";
-    echo "<script>sendEmail('".$email."','".$fname."');</script>";
-} else {
-    // If an error occurred
-    echo "<script>alert('Error: " . $sql . "\\n" . $conn->error . "');</script>";
-}
-}
-$conn->close();
-?>
