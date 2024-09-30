@@ -1,13 +1,14 @@
-
 <?php
 // Include the class file for the database connection
 require_once __DIR__ . './db/DatabaseConnection.php';
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Create an instance of the DatabaseConnection class
 $db = new DatabaseConnection();
-
-// You can now access the connection via $db->conn
-$conn = $db->conn;
+$conn = $db->conn; // You can now access the connection via $db->conn
 
 // Backend validation for the registration form
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -39,8 +40,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($stmt->execute()) {
                     // Notify the user of success
                     echo "<script>alert('Registration successful.');</script>";
-                    // Optionally, send an email (if you have a function set up for this)
-                    echo "<script>sendEmail('$email', '$fname');</script>";
+                    
+                    // Pass the email to a JavaScript variable and call sendEmail later
+                    echo "<script>
+                        var email = '$email';
+                        window.onload = function() {
+                            sendEmail(email);
+                        };
+                    </script>";
                 } else {
                     // Handle any errors that occur during insertion
                     echo "<script>alert('Error: " . $stmt->error . "');</script>";
@@ -65,8 +72,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Close the connection when done
 $db->closeConnection();
 ?>
-
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -95,8 +100,6 @@ $db->closeConnection();
 
         .overlay {
             background: #0064fa;
-            background: -webkit-linear-gradient(to right, #0064fa, #0064fa);
-            background: linear-gradient(to right, #0064fa, #0064fa);
             color: #ffffff;
             width: 100%;
             max-width: 400px; /* Adjust as needed */
@@ -127,7 +130,7 @@ $db->closeConnection();
 <body>
 <div class="container" id="container">
     <div class="form-container sign-up-container">
-        <form action="#" method="post">
+        <form action="" method="post"> <!-- Keep action as current file -->
             <h1>Create Account</h1>
             <div class="social-container">
                 <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
@@ -141,45 +144,36 @@ $db->closeConnection();
             <input type="text" name="country" placeholder="Country" required/>
             <input type="email" name="email" placeholder="Email" required/>
             <input type="password" name="password" placeholder="Password" required/>
-            <a href="SignIn.php"><button type="button" class="ghost" id="signUp">Sign Up</button></a>
+            <button type="submit" class="ghost" id="signUp">Sign Up</button>
         </form>
     </div>
-    
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-<script src="js/vendor/Register.js"></script>
-
-<script>
-    // You can add JavaScript code here if needed
-</script>
-
+<!-- Load the EmailJS script and initialize it -->
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script type="text/javascript">
     (function() {
-        // Initialize EmailJS
-        emailjs.init({
-            publicKey: "5w7dn8PaLxbtvDb_O",
-        });
+        // Initialize EmailJS with your public key
+        emailjs.init("IMBYADrcMPyNYpISy"); 
     })();
 </script>
 
+<!-- Define the sendEmail function -->
 <script>
-    function sendEmail(to_email, to_name) {
-      emailjs.send("service_e0nxrqb","template_sgxfkcd",{
-to_name: to_name,
-to_email: to_email,
-})
-        .then(function(response) {
-            console.log('Email sent successfully:', response);
-            alert('Email sent successfully!');
-        }, function(error) {
-            console.error('Email sending failed:', error);
-            alert('Email sending failed. Please try again later.');
-        });
+    function sendEmail(to_email) {
+        console.log("Sending email to:", to_email);
+        emailjs.send("service_e0nxrqb", "template_sgxfkcd", {
+                to_email: to_email,
+            })
+            .then(function(response) {
+                console.log('Email sent successfully:', response);
+                alert('Email sent successfully!');
+            }, function(error) {
+                console.error('Email sending failed:', error);
+                alert('Email sending failed. Please try again later.');
+            });
     }
 </script>
 
 </body>
 </html>
-

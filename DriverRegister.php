@@ -164,7 +164,7 @@ $conn->close();
     (function() {
         // Initialize EmailJS
         emailjs.init({
-            publicKey: "5w7dn8PaLxbtvDb_O",
+            publicKey: "IMBYADrcMPyNYpISy",
         });
     })();
 </script>
