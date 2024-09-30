@@ -102,7 +102,7 @@ if(!isset($_SESSION['email'])) {
 if(isset($_SESSION['email'])) {
     // Display the "Book A Room" link
     echo '<div class="book_btn d-none d-lg-block">';
-    echo '<a class="popup-with-form" href="#test-form">Book A Room</a>';
+    echo '<a class="BookingRoom" href="RoomBooking.php">Book A Room</a>';
     echo '</div>';
 
     // Display the "Book A Ride" link

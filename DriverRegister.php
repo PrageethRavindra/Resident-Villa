@@ -1,44 +1,76 @@
 <?php
-// Establish connection to MySQL database
-$servername = "localhost:3305"; // Change as per your configuration
-$username = "root"; // Change as per your configuration
-$password = "123@prageeth"; // Change as per your configuration
-$dbname = "resident_villa"; // Change as per your configuration
+// Include the class file for the database connection
+require_once __DIR__ . './db/DatabaseConnection.php';
 
-$conn = new mysqli($servername, $username, $password, $dbname);
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Create an instance of the DatabaseConnection class
+$db = new DatabaseConnection();
+$conn = $db->conn; // You can now access the connection via $db->conn
+
+// Backend validation for the driver registration form
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Ensure all required fields are filled
+    if (!empty($_POST['email']) && !empty($_POST['fname']) && !empty($_POST['lname']) && !empty($_POST['vehicle_type']) && !empty($_POST['phone']) && !empty($_POST['VehicleNo'])) {
+        
+        // Sanitize and validate inputs
+        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+        $fname = filter_var($_POST['fname'], FILTER_SANITIZE_STRING);
+        $lname = filter_var($_POST['lname'], FILTER_SANITIZE_STRING);
+        $vehicleType = filter_var($_POST['vehicle_type'], FILTER_SANITIZE_STRING);
+        $phone = filter_var($_POST['phone'], FILTER_SANITIZE_STRING);
+        $vehicleNo = filter_var($_POST['VehicleNo'], FILTER_SANITIZE_STRING);
+
+        // Validate email format
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            // Prepare the SQL query for insertion
+            $sql = "INSERT INTO drivertb (email, fname, lname, vehicletype, phone, VehicleNo) VALUES (?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+
+            if ($stmt) {
+                // Bind the parameters to the prepared statement
+                $stmt->bind_param("ssssss", $email, $fname, $lname, $vehicleType, $phone, $vehicleNo);
+
+                // Execute the query
+                if ($stmt->execute()) {
+                    // Notify the user of success
+                    echo "<script>alert('New record created successfully.');</script>";
+                    
+                    // Pass the email and name to a JavaScript variable and call sendEmail later
+                    echo "<script>
+                        var email = '".$email."';
+                        var name = '".$fname."';
+                        window.onload = function() {
+                            sendEmail(email, name);
+                        };
+                    </script>";
+                } else {
+                    // Handle any errors that occur during insertion
+                    echo "<script>alert('Error: " . $stmt->error . "');</script>";
+                }
+
+                // Close the prepared statement
+                $stmt->close();
+            } else {
+                // Handle preparation errors
+                echo "Error: " . $conn->error;
+            }
+        } else {
+            // If the email format is invalid
+            echo "<script>alert('Invalid email format.');</script>";
+        }
+    } else {
+        // If any required fields are missing
+        echo "<script>alert('Please fill all required fields.');</script>";
+    }
 }
-if (isset($_POST['email']) && isset($_POST['vehicle_type'])) {
-    // Retrieve email and password from the form
-    $email = $_POST['email'];
-    $password = $_POST['vehicle_type'];
 
-// Retrieve values from POST data
-$email = $_POST['email'];
-$fname = $_POST['fname'];
-$lname = $_POST['lname'];
-$vehicleType = $_POST['vehicle_type'];
-$phone = $_POST['phone'];
-$VehicleNo = $_POST['VehicleNo'];
-
-// SQL query to insert data into the database
-$sql = "INSERT INTO drivertb (email, fname, lname, vehicletype, phone, VehicleNo) VALUES ('$email', '$fname', '$lname', '$vehicleType', '$phone', '$VehicleNo')";
-
-
-if ($conn->query($sql) === TRUE) {
-    // If record inserted successfully
-    echo "<script>alert('New record created successfully');</script>";
-    echo "<script>sendEmail('".$email."','".$fname."');</script>";
-} else {
-    // If an error occurred
-    echo "<script>alert('Error: " . $sql . "\\n" . $conn->error . "');</script>";
-}
-}
-$conn->close();
+// Close the connection when done
+$db->closeConnection();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -153,37 +185,37 @@ $conn->close();
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-<script src="js/vendor/Register.js"></script>
+    <script src="js/vendor/Register.js"></script>
 
-<script>
-    // You can add JavaScript code here if needed
-</script>
+    <script>
+        // You can add JavaScript code here if needed
+    </script>
 
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script type="text/javascript">
-    (function() {
-        // Initialize EmailJS
-        emailjs.init({
-            publicKey: "IMBYADrcMPyNYpISy",
-        });
-    })();
-</script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            // Initialize EmailJS
+            emailjs.init({
+                publicKey: "IMBYADrcMPyNYpISy",
+            });
+        })();
+    </script>
 
-<script>
-    function sendEmail(to_email, to_name) {
-      emailjs.send("service_e0nxrqb","template_sgxfkcd",{
-to_name: to_name,
-to_email: to_email,
-})
-        .then(function(response) {
-            console.log('Email sent successfully:', response);
-            alert('Email sent successfully!');
-        }, function(error) {
-            console.error('Email sending failed:', error);
-            alert('Email sending failed. Please try again later.');
-        });
-    }
-</script>
+    <script>
+        function sendEmail(to_email, to_name) {
+            emailjs.send("service_e0nxrqb", "template_sgxfkcd", {
+                to_name: to_name,
+                to_email: to_email,
+            })
+            .then(function(response) {
+                console.log('Email sent successfully:', response);
+                alert('Email sent successfully!');
+            }, function(error) {
+                console.error('Email sending failed:', error);
+                alert('Email sending failed. Please try again later.');
+            });
+        }
+    </script>
 </body>
 </html>
 

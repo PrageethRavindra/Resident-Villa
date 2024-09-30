@@ -1,68 +1,65 @@
 <?php
-// Establish connection to MySQL database
-$servername = "localhost:3305"; // Change as per your configuration
-$username = "root"; // Change as per your configuration
-$password = "123@prageeth"; // Change as per your configuration
-$dbname = "resident_villa"; // Change as per your configuration
+// Include the class file for the database connection
+require_once __DIR__ . './db/DatabaseConnection.php';
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+// Create an instance of the DatabaseConnection class
+$db = new DatabaseConnection();
+$conn = $db->conn; // You can now access the connection via $db->conn
+
 if (isset($_POST['username']) && isset($_POST['password'])) {
-    // Retrieve email and password from the form
+    // Retrieve username and password from the form
     $username = $_POST['username'];
     $password = $_POST['password'];
-// Retrieve email and password from the form
-$username = $_POST['username'];
-$password = $_POST['password'];
 
-// Prepare a SQL statement
-$sql = "SELECT username, password FROM adminlogin WHERE username=?";
-$stmt = $conn->prepare($sql);
+    // Prepare a SQL statement
+    $sql = "SELECT username, password FROM adminlogin WHERE username=?";
+    $stmt = $conn->prepare($sql);
 
-if ($stmt) {
-    // Bind parameter to the prepared statement
-    $stmt->bind_param("s", $username);
+    if ($stmt) {
+        // Bind parameter to the prepared statement
+        $stmt->bind_param("s", $username);
 
-    // Execute the prepared statement
-    $stmt->execute();
+        // Execute the prepared statement
+        $stmt->execute();
 
-    // Store result
-    $result = $stmt->get_result();
+        // Store result
+        $result = $stmt->get_result();
 
-    // Check if there is a matching user
-    if ($result->num_rows > 0) {
-        // Fetch the user's details
-        $user = $result->fetch_assoc();
+        // Check if there is a matching user
+        if ($result->num_rows > 0) {
+            // Fetch the user's details
+            $user = $result->fetch_assoc();
 
-        // Verify password
-        if ($password == $user['password']) {
-            // Password is correct, login successful
-            header("Location: admin.php");
-        exit(); // Ensure that script execution stops after redirect
+            // Verify password (you might want to hash the password in the database for security)
+            if ($password === $user['password']) {
+                // Password is correct, login successful
+                header("Location: admin.php");
+                exit(); // Ensure that script execution stops after redirect
+            } else {
+                // Password is incorrect
+                echo "Login failed. Please check your username and password.";
+            }
         } else {
-            // Password is incorrect
-            echo "Login failed. Please check your email and password.";
+            // No matching user found
+            echo "Login failed. Please check your username and password.";
         }
-    } else {
-        // No matching user found
-        echo "Login failed. Please check your email and password.";
-    }
 
-    // Close statement
-    $stmt->close();
-} else {
-    // Error in preparing the statement
-    echo "Error: " . $conn->error;
+        // Close statement
+        $stmt->close();
+    } else {
+        // Error in preparing the statement
+        echo "Error: " . $conn->error;
+    }
 }
-}
+
 // Close connection
 $conn->close();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
