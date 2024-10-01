@@ -15,25 +15,21 @@ session_start(); // Start the session at the very beginning
 // Backend validation for login form
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (!empty($_POST['email']) && !empty($_POST['password'])) {
-
         // Sanitize inputs
         $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
         $password = $_POST['password'];
 
         // Validate email format
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-
             // Prepare a SQL statement to check user credentials
-            $sql = "SELECT email, password, name, role FROM signup WHERE email=?";
+            $sql = "SELECT email, password, fname, lname, role FROM signup WHERE email=?";
             $stmt = $conn->prepare($sql);
 
             if ($stmt) {
                 // Bind parameter to the prepared statement
                 $stmt->bind_param("s", $email);
-
                 // Execute the prepared statement
                 $stmt->execute();
-
                 // Store result
                 $result = $stmt->get_result();
 
@@ -41,98 +37,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($result->num_rows > 0) {
                     $user = $result->fetch_assoc();
 
-                    // Verify the password (use password_verify for hashed passwords)
+                    // Verify the password
                     if (password_verify($password, $user['password'])) {
                         // Set session variables
                         $_SESSION['email'] = $email;
-                        $_SESSION['name'] = $user['name']; // Store the user's name
-                        $_SESSION['role'] = $user['role']; // Store the user's role (if applicable)
+                        $_SESSION['name'] = $user['fname'] . ' ' . $user['lname']; // Store the user's name
+                        $_SESSION['role'] = $user['role']; // Store the user's role
 
-                        // Redirect to index.php after successful login
-                        header("Location: index.php");
-                        exit();
-                    } else {
-                        // Incorrect password
-                        echo "<script>alert('Login failed. Incorrect email or password.');</script>";
-                    }
-                } else {
-                    // No matching user found
-                    echo "<script>alert('Login failed. Incorrect email or password.');</script>";
-                }
-
-                // Close statement
-                $stmt->close();
-            } else {
-                echo "Error: " . $conn->error;
-            }
-        } else {
-            // Invalid email format
-            echo "<script>alert('Invalid email format.');</script>";
-        }
-    } else {
-        // Missing fields
-        echo "<script>alert('Please fill in all required fields.');</script>";
-    }
-}
-
-// Close the connection when done
-$db->closeConnection();
-?>
-
-
-
-<?php
-// Include the class file for the database connection
-require_once __DIR__ . './db/DatabaseConnection.php';
-
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Create an instance of the DatabaseConnection class
-$db = new DatabaseConnection();
-$conn = $db->conn; // You can now access the connection via $db->conn
-
-//session_start(); // Start the session at the very beginning
-
-// Backend validation for login form
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (!empty($_POST['email']) && !empty($_POST['password'])) {
-
-        // Sanitize inputs
-        $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-        $password = $_POST['password'];
-
-        // Validate email format
-        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-
-            // Prepare a SQL statement to check user credentials
-            $sql = "SELECT email, password FROM signup WHERE email=?";
-            $stmt = $conn->prepare($sql);
-
-            if ($stmt) {
-                // Bind parameter to the prepared statement
-                $stmt->bind_param("s", $email);
-
-                // Execute the prepared statement
-                $stmt->execute();
-
-                // Store result
-                $result = $stmt->get_result();
-
-                // Check if there is a matching user
-                if ($result->num_rows > 0) {
-                    $user = $result->fetch_assoc();
-
-                    // Verify the password (use password_verify for hashed passwords)
-                    if (password_verify($password, $user['password'])) {
-                        // Set session variables
-                        $_SESSION['email'] = $email;
-                        $_SESSION['name'] = $user['name']; // Store the user's name
-                        $_SESSION['role'] = $user['role']; // Store the user's role (if applicable)
-
-                        // Redirect to index.php after successful login
-                        header("Location: index.php");
+                        // Redirect based on role
+                        if ($user['role'] === 'admin') {
+                            header("Location: admin.php"); // Redirect to admin dashboard
+                        } else {
+                            header("Location: index.php"); // Redirect to user index page
+                        }
                         exit();
                     } else {
                         // Incorrect password
@@ -161,7 +78,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Close the connection when done
 $db->closeConnection();
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -207,7 +123,7 @@ $db->closeConnection();
                 
                 <a href="#">Forgot your password?</a>
                 <button type="submit">Sign In</button>
-                <a class="adminlogin" href="adminlogin.php"><b>Login As Admin</b></a>
+                
 
                 <?php if (isset($error_message)): ?>
                     <div class="alert alert-danger mt-3"><?php echo $error_message; ?></div>

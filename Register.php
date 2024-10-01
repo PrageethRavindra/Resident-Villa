@@ -28,26 +28,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Hash the password for security before inserting it into the database
             $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
+            // Check if email is for admin
+            $role = (strpos($email, 'admin@') === 0) ? 'admin' : 'customer';
+
             // Prepare the SQL query for insertion
-            $sql = "INSERT INTO signup (email, fname, lname, country, phone, password) VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO signup (email, fname, lname, country, phone, password, role) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
 
             if ($stmt) {
                 // Bind the parameters to the prepared statement
-                $stmt->bind_param("ssssss", $email, $fname, $lname, $country, $phone, $hashedPassword);
+                $stmt->bind_param("sssssss", $email, $fname, $lname, $country, $phone, $hashedPassword, $role);
 
                 // Execute the query
                 if ($stmt->execute()) {
                     // Notify the user of success
-                    echo "<script>alert('Registration successful.');</script>";
-                    
-                    // Pass the email to a JavaScript variable and call sendEmail later
-                    echo "<script>
-                        var email = '$email';
-                        window.onload = function() {
-                            sendEmail(email);
-                        };
-                    </script>";
+                    echo "<script>alert('Registration successful. Redirecting to sign in...');</script>";
+
+                    // Send email only if the user is a customer
+                    if ($role === 'customer') {
+                        // Pass the email to a JavaScript variable and call sendEmail
+                        echo "<script>
+                            var email = '$email';
+                            window.onload = function() {
+                                sendEmail(email);
+                                setTimeout(function() {
+                                    window.location.href = 'signIn.php'; // Redirect to sign-in page
+                                }, 1000); // Wait for 1 seconds before redirecting
+                            };
+                        </script>";
+                    } else {
+                        // Redirect to sign-in for admin without sending email
+                        echo "<script>
+                            setTimeout(function() {
+                                window.location.href = 'signIn.php'; // Redirect to sign-in page
+                            }, 1000); // Wait for 1 seconds before redirecting
+                        </script>";
+                    }
                 } else {
                     // Handle any errors that occur during insertion
                     echo "<script>alert('Error: " . $stmt->error . "');</script>";

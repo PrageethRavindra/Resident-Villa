@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Validate email format
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             // Prepare the SQL query for insertion
-            $sql = "INSERT INTO drivertb (email, fname, lname, vehicletype, phone, VehicleNo) VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO drivertb (email, fname, lname, vehicle_type, phone, vehicle_no) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
 
             if ($stmt) {
@@ -196,14 +196,14 @@ $db->closeConnection();
         (function() {
             // Initialize EmailJS
             emailjs.init({
-                publicKey: "IMBYADrcMPyNYpISy",
+                publicKey: "YhHXgvR7VQvQoE4VR",
             });
         })();
     </script>
 
     <script>
         function sendEmail(to_email, to_name) {
-            emailjs.send("service_e0nxrqb", "template_sgxfkcd", {
+            emailjs.send("service_71f1uuo", "template_lwdo2vk", {
                 to_name: to_name,
                 to_email: to_email,
             })

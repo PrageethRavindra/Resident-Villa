@@ -107,8 +107,8 @@
                             <h5 class="card-title"></h5>
                                 <?php
                                     $servername = "localhost:3305";
-                                    $username = "prageeth";
-                                    $password = "123@Admin";
+                                    $username = "root";
+                                    $password = "123@prageeth";
                                     $dbname = "resident_villa";
                                     
                                     $conn = new mysqli($servername, $username, $password, $dbname);
@@ -144,70 +144,69 @@
                 <!--Fin de First Row -->
                 <!-- Second Row -->
                 <div class="row">
-                    <div class="col-12 col-xl-8 mb-4 mb-lg-0">
-                        <div class="card">
-                            
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table">
-                                        <thead>
-                                            <tr>
-                                                <th scope="col">Ride ID</th>
-                                                <th scope="col">Vehicle Type</th>
-                                                <th scope="col">Pick-Up</th>
-                                                <th scope="col">Drop</th>
-                                                <th scope="col">Package Type</th>
-                                                <th scope="col">Pickup Date</th>
-                                                <th scope="col">Drop Date</th>
-                                                <th scope="col">First Name</th>
-                                                <th scope="col">Email</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                        <?php
-                                           $servername = "localhost:3305";
-                                           $username = "prageeth";
-                                           $password = "123@Admin";
-                                           $dbname = "resident_villa";
-                                           
-                                           $conn = new mysqli($servername, $username, $password, $dbname);
-                                           // Check connection
-                                           if ($conn->connect_error) {
-                                               die("Connection failed: " . $conn->connect_error);
-                                           }
+    <div class="col-12 mb-4 mb-lg-0">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover table-bordered">
+                        <thead>
+                            <tr>
+                                <th scope="col">Ride ID</th>
+                                <th scope="col">Vehicle Type</th>
+                                <th scope="col">Pick-Up</th>
+                                <th scope="col">Drop</th>
+                                <th scope="col">Package Type</th>
+                                <th scope="col">Pickup Date</th>
+                                <th scope="col">Drop Date</th>
+                                <th scope="col">First Name</th>
+                                <th scope="col">Email</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php
+                            $servername = "localhost:3305";
+                            $username = "root";
+                            $password = "123@prageeth";
+                            $dbname = "resident_villa";
 
-                                           $sql = "SELECT * FROM ridetb";
-                                           $result = $conn->query($sql);
-                                           
-                                           if ($result->num_rows > 0) {
-                                               // Output data of each row
-                                               while ($row = $result->fetch_assoc()) {
-                                                   echo "<tr>";
-                                                   echo "<td>" . $row['RideID'] . "</td>";
-                                                   echo "<td>" . $row['VehicleType'] . "</td>";
-                                                   echo "<td>" . $row['PickUp'] . "</td>"; // Fixed column name
-                                                   echo "<td>" . $row['Drop'] . "</td>"; // Fixed column name
-                                                   echo "<td>" . $row['PackageType'] . "</td>";
-                                                   echo "<td>" . $row['PickUpDate'] . "</td>";
-                                                   echo "<td>" . $row['DropDate'] . "</td>";
-                                                   echo "<td>" . $row['Fname'] . "</td>";
-                                                   echo "<td>" . $row['Email'] . "</td>";
-                                                   echo "</tr>";
-                                               }
-                                           } else {
-                                               echo "0 results";
-                                           }
-                                           $conn->close();
-                                           
-                                        ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <a href="#" class="btn btn-block btn-light">View all</a>
-                            </div>
-                        </div>
-                    </div>
+                            $conn = new mysqli($servername, $username, $password, $dbname);
+                            // Check connection
+                            if ($conn->connect_error) {
+                                die("Connection failed: " . $conn->connect_error);
+                            }
+
+                            $sql = "SELECT * FROM ridetb";
+                            $result = $conn->query($sql);
+
+                            if ($result->num_rows > 0) {
+                                // Output data of each row
+                                while ($row = $result->fetch_assoc()) {
+                                    echo "<tr>";
+                                    echo "<td>" . (isset($row['RideID']) ? $row['RideID'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['VehicleType']) ? $row['VehicleType'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['PickUp']) ? $row['PickUp'] : 'N/A') . "</td>"; // Fixed column name
+                                    echo "<td>" . (isset($row['Drop']) ? $row['Drop'] : 'N/A') . "</td>"; // Fixed column name
+                                    echo "<td>" . (isset($row['PackageType']) ? $row['PackageType'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['PickUpDate']) ? $row['PickUpDate'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['DropDate']) ? $row['DropDate'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['Fname']) ? $row['Fname'] : 'N/A') . "</td>";
+                                    echo "<td>" . (isset($row['Email']) ? $row['Email'] : 'N/A') . "</td>";
+                                    echo "</tr>";
+                                }
+                            } else {
+                                echo "<tr><td colspan='9'>No results found</td></tr>";
+                            }
+                            $conn->close();
+                        ?>
+                        </tbody>
+                    </table>
                 </div>
+                <a href="#" class="btn btn-block btn-light">View all</a>
+            </div>
+        </div>
+    </div>
+</div>
+
                 <!-- Fin de Second Row -->
                 <!--Fin Cards -->
             </main>

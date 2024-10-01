@@ -58,7 +58,7 @@ if(!isset($_SESSION['email'])) {
 ?>
 
 
-                                        <li><a href="rooms.html">rooms</a></li>
+                                        <li><a href="rooms.php">rooms</a></li>
                                         <li><a href="about.html">About</a></li>
                                             
                                         </li>
@@ -69,7 +69,7 @@ if(!isset($_SESSION['email'])) {
                         </div>
                         <div class="col-xl-2 col-lg-2">
                             <div class="logo-img">
-                                <a href="index.html">
+                                <a href="index.php">
                                     <img src="img/logo5.png" alt="Logo" width="80" height="80">
                                 </a>
                             </div>

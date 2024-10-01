@@ -42,20 +42,9 @@
                             <div class="main-menu  d-none d-lg-block">
                                 <nav>
                                     <ul id="navigation">
-                                        <li><a href="index.html">home</a></li>
-                                        <li><a class="active" href="rooms.html">rooms</a></li>
+                                        <li><a href="index.php">home</a></li>
+                                        <li><a class="active" href="rooms.php">rooms</a></li>
                                         <li><a href="about.html">About</a></li>
-                                        <li><a href="#">blog <i class="ti-angle-down"></i></a>
-                                            <ul class="submenu">
-                                                <li><a href="blog.html">blog</a></li>
-                                                <li><a href="single-blog.html">single-blog</a></li>
-                                            </ul>
-                                        </li>
-                                        <li><a href="#">pages <i class="ti-angle-down"></i></a>
-                                            <ul class="submenu">
-                                                <li><a href="elements.html">elements</a></li>
-                                            </ul>
-                                        </li>
                                         <li><a href="contact.html">Contact</a></li>
                                     </ul>
                                 </nav>
@@ -63,7 +52,7 @@
                         </div>
                         <div class="col-xl-2 col-lg-2">
                             <div class="logo-img">
-                                <a href="index.html">
+                                <a href="index.php">
                                     <img src="img/logo5.png" alt="Logo" width="80" height="80">
                                 </a>
                             </div>
@@ -89,12 +78,7 @@
                                         </li>
                                     </ul>
                                 </div>
-                                <div class="book_btn d-none d-lg-block">
-                                    <a class="popup-with-form" href="#test-form">Book A Room</a>
-                                </div>
-                                <div class="book_btn d-none d-lg-block">
-                                    <a class="popup-with-form" href="#test-form">Book A Ride </a>
-                                </div>
+                                
                             </div>
                         </div>
                         <div class="col-12">
@@ -254,7 +238,7 @@
                             </div>
                             <div class="col-xl-6 col-md-6">
                                 <div class="phone_num">
-                                        <a href="#" class="mobile_no">+10 576 377 4789</a>
+                                        <a href="#" class="mobile_no">+94 911222333</a>
                                 </div>
                             </div>
                         </div>
@@ -320,8 +304,8 @@
                             <h3 class="footer_title">
                                 address
                             </h3>
-                            <p class="footer_text" >  200, Green road, Mongla, <br>
-                                    New Yor City USA</p>
+                            <p class="footer_text" >  No.232 GalleRoad, <br>
+                                Hikkaduwa,Sri Lanka</p>
                             <a href="#" class="line-button">Get Direction</a>
                         </div>
                     </div>
@@ -330,8 +314,8 @@
                             <h3 class="footer_title">
                                     Reservation
                             </h3>
-                            <p class="footer_text" >+10 367 267 2678 <br>
-                                    reservation@montana.com</p>
+                            <p class="footer_text" >+94 911222333<br>
+                                ResidentVilla@galle.com</p>
                         </div>
                     </div>
                     <div class="col-xl-2 col-md-6 col-lg-2">
