@@ -1,42 +1,68 @@
 <?php
-// Include the class file for the database connection
 require_once __DIR__ . '/db/DatabaseConnection.php';
 
-// Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Create an instance of the DatabaseConnection class
 $db = new DatabaseConnection();
-$conn = $db->conn; // Access the connection via $db->conn
+$conn = $db->conn;
 
-// Backend validation for the room booking form
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Ensure required fields are filled
-    if (!empty($_POST['name']) && !empty($_POST['email'])) {
+    if (!empty($_POST['name']) && !empty($_POST['email']) && !empty($_POST['room-type']) && !empty($_POST['check-in']) && !empty($_POST['check-out'])) {
         
-        // Sanitize and validate inputs
         $roomType = filter_var($_POST['room-type'], FILTER_SANITIZE_STRING);
         $checkIn = filter_var($_POST['check-in'], FILTER_SANITIZE_STRING);
         $checkOut = filter_var($_POST['check-out'], FILTER_SANITIZE_STRING);
         $name = filter_var($_POST['name'], FILTER_SANITIZE_STRING);
         $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
         
-        // Validate email format
-        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            // Prepare the SQL query for insertion
-            $stmt = $conn->prepare("INSERT INTO room_bookings (room_type, check_in, check_out, name, email) VALUES (?, ?, ?, ?, ?)");
+        // Split full name into first and last name
+        $nameParts = explode(" ", $name, 2);
+        $firstName = $nameParts[0];
+        $lastName = isset($nameParts[1]) ? $nameParts[1] : '';
 
-            // Check if the statement was prepared successfully
-            if ($stmt === false) {
-                die("Error preparing statement: " . $conn->error);
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+
+            // 1. Check if customer already exists
+            $stmt = $conn->prepare("SELECT customer_id FROM Customers WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $stmt->store_result();
+            
+            if ($stmt->num_rows > 0) {
+                $stmt->bind_result($customer_id);
+                $stmt->fetch();
+            } else {
+                // Insert new customer
+                $stmtInsert = $conn->prepare("INSERT INTO Customers (first_name, last_name, email) VALUES (?, ?, ?)");
+                $stmtInsert->bind_param("sss", $firstName, $lastName, $email);
+                if ($stmtInsert->execute()) {
+                    $customer_id = $stmtInsert->insert_id;
+                } else {
+                    die("Error inserting customer: " . $stmtInsert->error);
+                }
+                $stmtInsert->close();
+            }
+            $stmt->close();
+
+            // 2. Assign room_number based on room type
+            $roomNumbers = [
+                "single" => 101,
+                "double" => 102,
+                "suite"  => 201
+            ];
+
+            if (!array_key_exists($roomType, $roomNumbers)) {
+                die("Invalid room type selected.");
             }
 
-            // Bind parameters
-            $stmt->bind_param("sssss", $roomType, $checkIn, $checkOut, $name, $email);
+            $roomNumber = $roomNumbers[$roomType];
 
-            // Execute the query
-            if ($stmt->execute()) {
+            // 3. Insert room booking
+            $stmtBooking = $conn->prepare("INSERT INTO RoomBookings (customer_id, room_number, check_in_date, check_out_date) VALUES (?, ?, ?, ?)");
+            $stmtBooking->bind_param("iiss", $customer_id, $roomNumber, $checkIn, $checkOut);
+            
+            if ($stmtBooking->execute()) {
                 echo "<script>alert('Booking created successfully.');</script>";
                 echo "<script>
                     var email = '".$email."';
@@ -46,12 +72,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     };
                 </script>";
             } else {
-                error_log("SQL Error: " . $stmt->error);
-                echo "<script>alert('Error: " . htmlspecialchars($stmt->error) . "');</script>";
+                error_log("SQL Error: " . $stmtBooking->error);
+                echo "<script>alert('Error: " . htmlspecialchars($stmtBooking->error) . "');</script>";
             }
 
-            // Close the prepared statement
-            $stmt->close();
+            $stmtBooking->close();
+
         } else {
             echo "<script>alert('Invalid email format.');</script>";
         }
@@ -60,9 +86,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Close the connection when done
 $db->closeConnection();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">

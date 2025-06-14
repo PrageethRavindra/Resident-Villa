@@ -1,21 +1,15 @@
 <?php
-// Include the class file for the database connection
 require_once __DIR__ . './db/DatabaseConnection.php';
-
-// Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Create an instance of the DatabaseConnection class
 $db = new DatabaseConnection();
-$conn = $db->conn; // You can now access the connection via $db->conn
+$conn = $db->conn;
 
-// Backend validation for the ride registration form
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Ensure required fields are filled
     if (!empty($_POST['fname']) && !empty($_POST['email'])) {
-        
-        // Sanitize and validate inputs
+
+        // Sanitize inputs
         $vehicleType = filter_var($_POST['VehicleType'], FILTER_SANITIZE_STRING);
         $pickup = filter_var($_POST['pickup'], FILTER_SANITIZE_STRING);
         $pickupDate = filter_var($_POST['PickupDate'], FILTER_SANITIZE_STRING);
@@ -25,51 +19,86 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
         $packageType = isset($_POST['plan']) ? filter_var($_POST['plan'], FILTER_SANITIZE_STRING) : '';
 
-        // Validate email format
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            // Prepare the SQL query for insertion
-            $stmt = $conn->prepare("INSERT INTO ridetb (vehicleType, pickUp, dropOff, packageType, PickupDate, DropDate, Fname, Email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-            // Check if the statement was prepared successfully
-            if ($stmt === false) {
-                die("Error preparing statement: " . $conn->error);
+            // Calculate fare
+            $fare = 0;
+            switch($packageType) {
+                case 'regular': $fare = 5000; break;
+                case 'pro': $fare = 10000; break;
+                case 'advance': $fare = 15000; break;
+                default: $fare = 0;
             }
 
-            $stmt->bind_param("ssssssss", $vehicleType, $pickup, $drop, $packageType, $pickupDate, $dropDate, $fname, $email);
+            // Get customer_id from Customers table
+            $stmt_customer = $conn->prepare("SELECT customer_id FROM Customers WHERE email = ?");
+            $stmt_customer->bind_param("s", $email);
+            $stmt_customer->execute();
+            $stmt_customer->store_result();
 
-            // Execute the query
-            if ($stmt->execute()) {
-                // Notify the user of success
-                echo "<script>alert('New record created successfully.');</script>";
-                
-                // Pass the email and name to a JavaScript variable and call sendEmail later
-                echo "<script>
-                    var email = '".$email."';
-                    var name = '".$fname."';
-                    window.onload = function() {
-                        sendEmail(email, name);
-                    };
-                </script>";
+            if ($stmt_customer->num_rows > 0) {
+                $stmt_customer->bind_result($customer_id);
+                $stmt_customer->fetch();
+
+                // Find available driver
+                $stmt_driver = $conn->prepare("SELECT driver_id FROM Drivers WHERE status = 'available' LIMIT 1");
+                $stmt_driver->execute();
+                $stmt_driver->store_result();
+
+                if ($stmt_driver->num_rows > 0) {
+                    $stmt_driver->bind_result($driver_id);
+                    $stmt_driver->fetch();
+
+                    // Insert into RideBookings table
+                    $bookingDate = $pickupDate;
+                    $pickupTime = '09:00:00'; // you can dynamically take this from user later
+                    $dropoffTime = '10:00:00'; // default drop off for demo
+
+                    $insert = $conn->prepare("
+                        INSERT INTO RideBookings (customer_id, driver_id, pickup_location, destination, fare, booking_date, pickup_time, dropoff_time, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
+                    ");
+                    $insert->bind_param("iissdsss", $customer_id, $driver_id, $pickup, $drop, $fare, $bookingDate, $pickupTime, $dropoffTime);
+
+                    if ($insert->execute()) {
+                        echo "<script>alert('Booking created successfully.');</script>";
+
+                        // Update driver status to booked
+                        $conn->query("UPDATE Drivers SET status = 'booked' WHERE driver_id = $driver_id");
+
+                        echo "<script>
+                            var email = '".$email."';
+                            var name = '".$fname."';
+                            window.onload = function() {
+                                sendEmail(email, name);
+                            };
+                        </script>";
+                    } else {
+                        echo "<script>alert('Error inserting booking: " . $insert->error . "');</script>";
+                    }
+                    $insert->close();
+
+                } else {
+                    echo "<script>alert('No available drivers.');</script>";
+                }
+                $stmt_driver->close();
+
             } else {
-                // Handle any errors that occur during insertion
-                echo "<script>alert('Error: " . $stmt->error . "');</script>";
+                echo "<script>alert('Customer email not found.');</script>";
             }
+            $stmt_customer->close();
 
-            // Close the prepared statement
-            $stmt->close();
         } else {
-            // If the email format is invalid
             echo "<script>alert('Invalid email format.');</script>";
         }
     } else {
-        // If any required fields are missing
         echo "<script>alert('Please fill all required fields.');</script>";
     }
 }
-
-// Close the connection when done
 $db->closeConnection();
 ?>
+
+
 
 <!DOCTYPE html>
 <html lang="en">
