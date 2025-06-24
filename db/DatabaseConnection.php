@@ -1,8 +1,8 @@
 <?php
 class DatabaseConnection {
-    private $servername = "localhost:3306"; // Your server name (including port if needed)
+    private $servername = "127.0.0.1"; // Your server name (including port if needed)
     private $username = "root";             // Your MySQL username
-    private $password = "prageeth";      // Your MySQL password
+    private $password = "";      // Your MySQL password
     private $dbname = "resident_villa";      // Your database name
     public $conn;
 

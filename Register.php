@@ -424,6 +424,7 @@
                 grid-template-columns: 1fr;
             }
 
+            h prezzi VO-2.0.0
             h1 {
                 font-size: 24px;
             }
@@ -483,7 +484,7 @@
             </div>
 
             <!-- Registration form -->
-            <form id="registrationForm" method="post">
+            <form id="registrationForm" method="post" action="">
                 <div class="form-grid">
                     <div class="form-row">
                         <div class="input-group">
@@ -540,43 +541,6 @@
         // Initialize EmailJS
         emailjs.init("IMBYADrcMPyNYpISy");
 
-        // Form handling
-        document.getElementById('registrationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const submitBtn = document.getElementById('submitBtn');
-            const formData = new FormData(this);
-            
-            // Show loading state
-            submitBtn.classList.add('loading');
-            submitBtn.disabled = true;
-            
-            // Simulate form submission (replace with actual PHP handling)
-            setTimeout(() => {
-                // Simulate successful registration
-                showMessage('Registration successful! Redirecting to sign in...', 'success');
-                
-                // Send welcome email for customers
-                const email = formData.get('email');
-                const fname = formData.get('fname');
-                const lname = formData.get('lname');
-                
-                if (!email.startsWith('admin@')) {
-                    sendWelcomeEmail(email, fname, lname);
-                }
-                
-                // Reset form
-                submitBtn.classList.remove('loading');
-                submitBtn.disabled = false;
-                
-                // Redirect after delay
-                setTimeout(() => {
-                    window.location.href = 'signIn.php';
-                }, 3000);
-                
-            }, 2000);
-        });
-
         function sendWelcomeEmail(email, firstName, lastName) {
             const modal = document.getElementById('emailModal');
             modal.classList.add('active');
@@ -596,6 +560,7 @@
                 .catch(function(error) {
                     console.error('Email sending failed:', error);
                     modal.classList.remove('active');
+                    showMessage('Failed to send welcome email', 'error');
                 });
         }
 
@@ -639,7 +604,6 @@
     </script>
 
     <?php
-    // Keep the original PHP logic here
     require_once __DIR__ . '/db/DatabaseConnection.php';
 
     error_reporting(E_ALL);
@@ -662,39 +626,82 @@
                 $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
                 $role = (strpos($email, 'admin@') === 0) ? 'admin' : 'customer';
 
-                $sql = "INSERT INTO UserAccounts (first_name, last_name, email, password_hash, user_role) VALUES (?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($sql);
+                // Start transaction
+                $conn->begin_transaction();
 
-                if ($stmt) {
+                try {
+                    // Insert into UserAccounts
+                    $sql = "INSERT INTO UserAccounts (first_name, last_name, email, password_hash, user_role) VALUES (?, ?, ?, ?, ?)";
+                    $stmt = $conn->prepare($sql);
+                    if (!$stmt) {
+                        throw new Exception("Prepare failed: " . $conn->error);
+                    }
                     $stmt->bind_param("sssss", $fname, $lname, $email, $hashedPassword, $role);
+                    if (!$stmt->execute()) {
+                        if ($stmt->errno == 1062) {
+                            throw new Exception("Email already exists");
+                        }
+                        throw new Exception("Execute failed: " . $stmt->error);
+                    }
+                    $stmt->close();
 
-                    if ($stmt->execute()) {
-                        echo "<script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                showMessage('Registration successful! Redirecting to sign in...', 'success');
-                                
-                                if ('$role' === 'customer') {
-                                    sendWelcomeEmail('$email', '$fname', '$lname');
-                                }
-                                
-                                setTimeout(function() {
-                                    window.location.href = 'signIn.php';
-                                }, 3000);
-                            });
-                        </script>";
-                    } else {
-                        echo "<script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                showMessage('Error: " . addslashes($stmt->error) . "', 'error');
-                            });
-                        </script>";
+                    // Insert into Customers table for non-admin users
+                    if ($role === 'customer') {
+                        $sql = "INSERT INTO Customers (first_name, last_name, email, phone, address) VALUES (?, ?, ?, ?, ?)";
+                        $address = $country; // Using country as address; adjust if needed
+                        $stmt = $conn->prepare($sql);
+                        if (!$stmt) {
+                            throw new Exception("Prepare failed: " . $conn->error);
+                        }
+                        $stmt->bind_param("sssss", $fname, $lname, $email, $phone, $address);
+                        if (!$stmt->execute()) {
+                            if ($stmt->errno == 1062) {
+                                throw new Exception("Email already exists in Customers table");
+                            }
+                            throw new Exception("Execute failed: " . $stmt->error);
+                        }
+                        $stmt->close();
                     }
 
-                    $stmt->close();
-                } else {
+                    // For admins, you may need to insert into Admin table if it supports phone and address
+                    /*
+                    if ($role === 'admin') {
+                        $sql = "INSERT INTO Admin (full_name, email, password_hash, phone, address) VALUES (?, ?, ?, ?, ?)";
+                        $full_name = $fname . ' ' . $lname;
+                        $address = $country;
+                        $stmt = $conn->prepare($sql);
+                        if (!$stmt) {
+                            throw new Exception("Prepare failed: " . $conn->error);
+                        }
+                        $stmt->bind_param("sssss", $full_name, $email, $hashedPassword, $phone, $address);
+                        if (!$stmt->execute()) {
+                            if ($stmt->errno == 1062) {
+                                throw new Exception("Email already exists in Admin table");
+                            }
+                            throw new Exception("Execute failed: " . $stmt->error);
+                        }
+                        $stmt->close();
+                    }
+                    */
+
+                    // Commit transaction
+                    $conn->commit();
+
+                    // Trigger email and success message
                     echo "<script>
                         document.addEventListener('DOMContentLoaded', function() {
-                            showMessage('Database error occurred', 'error');
+                            showMessage('Registration successful! Sending welcome email...', 'success');
+                            sendWelcomeEmail('$email', '$fname', '$lname');
+                            setTimeout(function() {
+                                window.location.href = 'signIn.php';
+                            }, 3000);
+                        });
+                    </script>";
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    echo "<script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            showMessage('Error: " . addslashes($e->getMessage()) . "', 'error');
                         });
                     </script>";
                 }

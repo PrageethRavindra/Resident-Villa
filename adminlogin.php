@@ -1,6 +1,6 @@
 <?php
 // Include the class file for the database connection
-require_once __DIR__ . './db/DatabaseConnection.php';
+require_once __DIR__ . '/db/DatabaseConnection.php';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);

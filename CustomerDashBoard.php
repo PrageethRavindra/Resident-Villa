@@ -1,6 +1,6 @@
 <?php
 // Include the DatabaseConnection class
-require_once __DIR__ . './db/DatabaseConnection.php';
+require_once __DIR__ . '/db/DatabaseConnection.php';
 
 // Handle search functionality
 $searchTerm = isset($_GET['search']) ? trim($_GET['search']) : '';
