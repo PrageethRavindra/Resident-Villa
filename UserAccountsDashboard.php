@@ -8,10 +8,10 @@ session_start();
 // }
 
 // Database connection
-$servername = "localhost:3306";
-$username = "root";
-$password = "prageeth";
-$dbname = "resident_villa";
+    $servername = "127.0.0.1"; // Your server name (including port if needed)
+    $username = "root";             // Your MySQL username
+    $password = "";      // Your MySQL password
+    $dbname = "resident_villa";  
 
 try {
     $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
