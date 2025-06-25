@@ -14,7 +14,6 @@
   </style>
 </head>
 <body class="bg-light p-3">
-  
   <h4 class="text-center mb-3">📷 Scan Guest QR</h4>
 
   <!-- QR Scanner -->
@@ -54,8 +53,18 @@
     </div>
 
     <div class="mb-3">
-      <label for="amount" class="form-label">Amount (Rs)</label>
-      <input type="number" name="amount" id="amount" step="0.01" class="form-control" required min="0">
+      <label for="unit_price" class="form-label">Unit Price (Rs)</label>
+      <input type="number" name="unit_price" id="unit_price" step="0.01" class="form-control" required min="0" oninput="calculateTotal()">
+    </div>
+
+    <div class="mb-3">
+      <label for="quantity" class="form-label">Quantity</label>
+      <input type="number" name="quantity" id="quantity" class="form-control" required min="1" value="1" oninput="calculateTotal()">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Total (Rs)</label>
+      <div id="total-display" class="form-control-plaintext fw-bold">0.00</div>
     </div>
 
     <div class="mb-3">
@@ -76,6 +85,13 @@
   <script>
     let html5QrCode;
     let isScanning = false;
+
+    function calculateTotal() {
+      const unitPrice = parseFloat(document.getElementById('unit_price').value) || 0;
+      const quantity = parseInt(document.getElementById('quantity').value) || 1;
+      const total = (unitPrice * quantity).toFixed(2);
+      document.getElementById('total-display').textContent = total;
+    }
 
     function setBookingId(displayId) {
       const hiddenField = document.getElementById('booking_id');

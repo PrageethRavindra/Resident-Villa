@@ -23,7 +23,8 @@ try {
     // Validate and get form data
     $booking_id_raw = $_POST['booking_id'] ?? null;
     $item = $_POST['item_name'] ?? null;
-    $amount = $_POST['amount'] ?? null;
+    $unit_price = $_POST['unit_price'] ?? null;
+    $quantity = $_POST['quantity'] ?? null;
     $added_by = $_POST['added_by'] ?? null;
 
     // Parse booking_id from QR code format
@@ -42,10 +43,11 @@ try {
     $errors = [];
     if (empty($booking_id)) $errors[] = "Booking ID is required";
     if (empty($item)) $errors[] = "Item name is required";
-    if (empty($amount) || !is_numeric($amount)) $errors[] = "Valid amount is required";
-    if (empty($added_by)) $errors[] = "Added by field is required";
+    if (empty($unit_price) || !is_numeric($unit_price) || $unit_price <= 0) $errors[] = "Valid unit price is required";
+    if (empty($quantity) || !is_numeric($quantity) || $quantity <= 0) $errors[] = "Valid quantity is required";
+    if (empty($added_by)) $errors[] = "Source is required";
 
-    if (!empty($errors)) {
+    if ($errors) {
         echo "<p style='color:red;'>Error:</p>";
         echo "<ul>";
         foreach ($errors as $error) {
@@ -56,15 +58,18 @@ try {
         exit;
     }
 
+    // Calculate total
+    $total = $unit_price * $quantity;
+
     // Prepare and execute the insert statement
-    $sql = "INSERT INTO Expenses (booking_id, item_name, amount, added_by) VALUES (?, ?, ?, ?)";
+    $sql = "INSERT INTO Expenses (booking_id, item_name, unit_price, quantity, total, added_by) VALUES (?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die("SQL Prepare failed: " . $conn->error);
     }
 
     // Bind parameters
-    $stmt->bind_param("isds", $booking_id, $item, $amount, $added_by);
+    $stmt->bind_param("isddds", $booking_id, $item, $unit_price, $quantity, $total, $added_by);
 
     // Execute the statement
     if ($stmt->execute()) {
@@ -77,14 +82,14 @@ try {
         }
         $verify->bind_param("i", $inserted_id);
         if (!$verify->execute()) {
-            die("Verify query execution failed: " . $verify->error);
+            throw new Exception("Verify query execution failed: " . $verify->error);
         }
         $result = $verify->get_result();
         $record = $result->fetch_assoc();
         $verify->close();
 
         if (!$record) {
-            die("Could not verify inserted record");
+            throw new Exception("Failed to verify inserted record");
         }
 
         // Display success message and redirect
@@ -100,8 +105,8 @@ try {
         echo "<div class='container mt-5'>";
         echo "<div class='alert alert-success text-center'>";
         echo "<h4>✅ Expense Added Successfully!</h4>";
-
         echo "<p><a href='cashier.php'>Click here to go now</a></p>";
+        echo "</div>";
         echo "</div>";
         echo "</body>";
         echo "</html>";

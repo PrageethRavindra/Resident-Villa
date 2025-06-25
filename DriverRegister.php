@@ -683,6 +683,12 @@ if (!$drivers_result) {
             </a>
         </div>
         <div class="nav-item">
+            <a class="nav-link" href="staff/cashier.php">
+            <i class="fas fa-cash-register nav-icon"></i>
+                <span>Cashier</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a class="nav-link" href="logout.php">
                 <i class="fas fa-sign-out-alt nav-icon"></i>
                 <span>Logout</span>
