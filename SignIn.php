@@ -1,15 +1,27 @@
 <?php
 // Include the class file for the database connection
-require_once __DIR__ . './db/DatabaseConnection.php';
+require_once __DIR__ . '/db/DatabaseConnection.php';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0); // Disable display in production
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/error.log');
 
 // Create an instance of the DatabaseConnection class
-$db = new DatabaseConnection();
-$conn = $db->conn;
+try {
+    $db = new DatabaseConnection();
+    $conn = $db->conn;
+    if (!$conn) {
+        throw new Exception("Database connection is null");
+    }
+} catch (Exception $e) {
+    error_log("Database connection failed: " . $e->getMessage());
+    http_response_code(500);
+    $error_message = "Database connection failed. Please try again later.";
+}
 
+// Start session
 session_start();
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -18,10 +30,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $password = $_POST['password'];
 
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-
-            // -------- Hardcoded Admin Logic --------
+            // Hardcoded Admin Logic
             $hardcoded_admin_email = 'admin@villa.com';
-            $hardcoded_admin_password_hash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';  // example hashed password ("password")
+            $hardcoded_admin_password_hash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'; // "password"
 
             if (strtolower($email) === strtolower($hardcoded_admin_email)) {
                 if (password_verify($password, $hardcoded_admin_password_hash)) {
@@ -33,41 +44,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 } else {
                     $error_message = "Login failed. Incorrect email or password.";
                 }
-            }
-            // -------- End Hardcoded Admin Logic --------
+            } else {
+                // Check database for regular users
+                try {
+                    $sql = "SELECT email, password_hash, first_name, last_name, user_role FROM UserAccounts WHERE email=?";
+                    $stmt = $conn->prepare($sql);
+                    if (!$stmt) {
+                        throw new Exception("Prepare failed: " . $conn->error);
+                    }
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
 
-            // Proceed to check database for regular users
-            $sql = "SELECT email, password_hash, first_name, last_name, user_role FROM UserAccounts WHERE email=?";
-            $stmt = $conn->prepare($sql);
+                    if ($result->num_rows > 0) {
+                        $user = $result->fetch_assoc();
 
-            if ($stmt) {
-                $stmt->bind_param("s", $email);
-                $stmt->execute();
-                $result = $stmt->get_result();
+                        if (password_verify($password, $user['password_hash'])) {
+                            $_SESSION['email'] = $email;
+                            $_SESSION['name'] = trim($user['first_name'] . ' ' . $user['last_name']);
+                            $_SESSION['role'] = $user['user_role'];
 
-                if ($result->num_rows > 0) {
-                    $user = $result->fetch_assoc();
+                            // Check if user is a driver
+                            $driver_sql = "SELECT driver_id FROM Drivers WHERE email=?";
+                            $driver_stmt = $conn->prepare($driver_sql);
+                            if (!$driver_stmt) {
+                                // Fallback: Try matching driver_id with email prefix (e.g., driver_1@residentvilla.com)
+                                $email_prefix = explode('@', $email)[0];
+                                $driver_sql = "SELECT driver_id FROM Drivers WHERE driver_id = ?";
+                                $driver_stmt = $conn->prepare($driver_sql);
+                                if (!$driver_stmt) {
+                                    throw new Exception("Driver prepare failed: " . $conn->error);
+                                }
+                                $driver_id = (int)str_replace('driver_', '', $email_prefix);
+                                $driver_stmt->bind_param("i", $driver_id);
+                            } else {
+                                $driver_stmt->bind_param("s", $email);
+                            }
+                            $driver_stmt->execute();
+                            $driver_result = $driver_stmt->get_result();
 
-                    if (password_verify($password, $user['password_hash'])) {
-                        $_SESSION['email'] = $email;
-                        $_SESSION['name'] = $user['first_name'] . ' ' . $user['last_name'];
-                        $_SESSION['role'] = $user['user_role'];
-
-                        if ($user['user_role'] === 'admin') {
-                            header("Location: admin.php");
+                            if ($driver_result->num_rows > 0) {
+                                // User is a driver, redirect to DriverDashboard
+                                $_SESSION['driver_id'] = $driver_result->fetch_assoc()['driver_id'];
+                                if (!file_exists(__DIR__ . '/DriverDashboard.php')) {
+                                    throw new Exception("DriverDashboard.php not found");
+                                }
+                                header("Location: DriverDashboard.php");
+                            } else if ($user['user_role'] === 'admin') {
+                                header("Location: admin.php");
+                            } else {
+                                header("Location: index.php");
+                            }
+                            $driver_stmt->close();
+                            exit();
                         } else {
-                            header("Location: index.php");
+                            $error_message = "Login failed. Incorrect email or password.";
                         }
-                        exit();
                     } else {
                         $error_message = "Login failed. Incorrect email or password.";
                     }
-                } else {
-                    $error_message = "Login failed. Incorrect email or password.";
+                    $stmt->close();
+                } catch (Exception $e) {
+                    error_log("Login error: " . $e->getMessage());
+                    $error_message = "Server error occurred. Please try again.";
                 }
-                $stmt->close();
-            } else {
-                echo "Error: " . $conn->error;
             }
         } else {
             $error_message = "Invalid email format.";
@@ -77,7 +117,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$db->closeConnection();
+// Close database connection
+if (isset($db)) {
+    try {
+        $db->closeConnection();
+    } catch (Exception $e) {
+        error_log("Error closing database connection: " . $e->getMessage());
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -90,9 +137,7 @@ $db->closeConnection();
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="shortcut icon" type="image/x-icon" href="img/favicon.png">
-    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -138,14 +183,8 @@ $db->closeConnection();
         }
 
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .login-header {
@@ -315,35 +354,12 @@ $db->closeConnection();
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
 
-        .social-btn.facebook {
-            color: #1877f2;
-        }
-
-        .social-btn.facebook:hover {
-            background: #1877f2;
-            color: white;
-            border-color: #1877f2;
-        }
-
-        .social-btn.google {
-            color: #ea4335;
-        }
-
-        .social-btn.google:hover {
-            background: #ea4335;
-            color: white;
-            border-color: #ea4335;
-        }
-
-        .social-btn.linkedin {
-            color: #0077b5;
-        }
-
-        .social-btn.linkedin:hover {
-            background: #0077b5;
-            color: white;
-            border-color: #0077b5;
-        }
+        .social-btn.facebook { color: #1877f2; }
+        .social-btn.facebook:hover { background: #1877f2; color: white; border-color: #1877f2; }
+        .social-btn.google { color: #ea4335; }
+        .social-btn.google:hover { background: #ea4335; color: white; border-color: #ea4335; }
+        .social-btn.linkedin { color: #0077b5; }
+        .social-btn.linkedin:hover { background: #0077b5; color: white; border-color: #0077b5; }
 
         .signup-link {
             text-align: center;
@@ -392,15 +408,8 @@ $db->closeConnection();
                 max-width: none;
             }
 
-            h1 {
-                font-size: 1.75rem;
-            }
-
-            .logo {
-                width: 70px;
-                height: 70px;
-                font-size: 1.75rem;
-            }
+            h1 { font-size: 1.75rem; }
+            .logo { width: 70px; height: 70px; font-size: 1.75rem; }
         }
 
         .floating-shapes {
@@ -421,29 +430,9 @@ $db->closeConnection();
             animation: float 20s infinite linear;
         }
 
-        .shape:nth-child(1) {
-            width: 80px;
-            height: 80px;
-            top: 20%;
-            left: 10%;
-            animation-delay: 0s;
-        }
-
-        .shape:nth-child(2) {
-            width: 60px;
-            height: 60px;
-            top: 60%;
-            right: 10%;
-            animation-delay: 5s;
-        }
-
-        .shape:nth-child(3) {
-            width: 40px;
-            height: 40px;
-            top: 80%;
-            left: 20%;
-            animation-delay: 10s;
-        }
+        .shape:nth-child(1) { width: 80px; height: 80px; top: 20%; left: 10%; animation-delay: 0s; }
+        .shape:nth-child(2) { width: 60px; height: 60px; top: 60%; right: 10%; animation-delay: 5s; }
+        .shape:nth-child(3) { width: 40px; height: 40px; top: 80%; left: 20%; animation-delay: 10s; }
 
         @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -469,7 +458,7 @@ $db->closeConnection();
             <p class="subtitle">Sign in to your Resident Villa account</p>
         </div>
 
-        <form action="signin.php" method="post" onsubmit="return validateLoginForm();">
+        <form action="SignIn.php" method="post" onsubmit="return validateLoginForm();">
             <div class="form-group">
                 <i class="fas fa-envelope"></i>
                 <input id="email" name="email" type="email" placeholder="Enter your email address" required />
@@ -492,7 +481,7 @@ $db->closeConnection();
             <?php if (isset($error_message)): ?>
                 <div class="alert">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <?php echo $error_message; ?>
+                    <?php echo htmlspecialchars($error_message); ?>
                 </div>
             <?php endif; ?>
         </form>
@@ -502,15 +491,9 @@ $db->closeConnection();
         </div>
 
         <div class="social-login">
-            <a href="#" class="social-btn facebook">
-                <i class="fab fa-facebook-f"></i>
-            </a>
-            <a href="#" class="social-btn google">
-                <i class="fab fa-google"></i>
-            </a>
-            <a href="#" class="social-btn linkedin">
-                <i class="fab fa-linkedin-in"></i>
-            </a>
+            <a href="#" class="social-btn facebook"><i class="fab fa-facebook-f"></i></a>
+            <a href="#" class="social-btn google"><i class="fab fa-google"></i></a>
+            <a href="#" class="social-btn linkedin"><i class="fab fa-linkedin-in"></i></a>
         </div>
 
         <div class="signup-link">
@@ -541,14 +524,12 @@ $db->closeConnection();
             window.location.href = "Register.php";
         }
 
-        // Add loading animation to button on form submit
         document.querySelector('form').addEventListener('submit', function(e) {
             const btn = document.querySelector('.login-btn');
             btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i>Signing In...';
             btn.disabled = true;
         });
 
-        // Add floating animation to input focus
         document.querySelectorAll('input').forEach(input => {
             input.addEventListener('focus', function() {
                 this.parentElement.style.transform = 'translateY(-2px)';

@@ -445,6 +445,88 @@
     </style>
 </head>
 <body>
+    <?php
+    // PHP processing at the top
+    require_once __DIR__ . '/db/DatabaseConnection.php';
+
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+
+    $message = '';
+    $messageType = '';
+    $userEmail = '';
+    $userFirstName = '';
+    $userLastName = '';
+    $userRole = '';
+    $registrationSuccess = false;
+
+    if ($_SERVER["REQUEST_METHOD"] == "POST") {
+        $db = new DatabaseConnection();
+        $conn = $db->conn;
+
+        if (!empty($_POST['email']) && !empty($_POST['fname']) && !empty($_POST['lname']) && !empty($_POST['country']) && !empty($_POST['phone']) && !empty($_POST['password'])) {
+            
+            $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+            $fname = filter_var($_POST['fname'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $lname = filter_var($_POST['lname'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $country = filter_var($_POST['country'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $phone = filter_var($_POST['phone'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $password = $_POST['password'];
+
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                // Check if user already exists
+                $checkSql = "SELECT email FROM UserAccounts WHERE email = ?";
+                $checkStmt = $conn->prepare($checkSql);
+                $checkStmt->bind_param("s", $email);
+                $checkStmt->execute();
+                $result = $checkStmt->get_result();
+
+                if ($result->num_rows > 0) {
+                    $message = 'Email already exists. Please use a different email.';
+                    $messageType = 'error';
+                } else {
+                    $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+                    $role = (strpos($email, 'admin@') === 0) ? 'admin' : 'customer';
+
+                    $sql = "INSERT INTO UserAccounts (first_name, last_name, email, password_hash, user_role) VALUES (?, ?, ?, ?, ?)";
+                    $stmt = $conn->prepare($sql);
+
+                    if ($stmt) {
+                        $stmt->bind_param("sssss", $fname, $lname, $email, $hashedPassword, $role);
+
+                        if ($stmt->execute()) {
+                            $message = 'Registration successful! Welcome email will be sent shortly.';
+                            $messageType = 'success';
+                            $userEmail = $email;
+                            $userFirstName = $fname;
+                            $userLastName = $lname;
+                            $userRole = $role;
+                            $registrationSuccess = true;
+                        } else {
+                            $message = 'Error: ' . $stmt->error;
+                            $messageType = 'error';
+                        }
+
+                        $stmt->close();
+                    } else {
+                        $message = 'Database error occurred';
+                        $messageType = 'error';
+                    }
+                }
+                $checkStmt->close();
+            } else {
+                $message = 'Invalid email format';
+                $messageType = 'error';
+            }
+        } else {
+            $message = 'Please fill all required fields';
+            $messageType = 'error';
+        }
+
+        $db->closeConnection();
+    }
+    ?>
+
     <!-- Animated background -->
     <div class="background-animation">
         <div class="floating-shape shape-1"></div>
@@ -462,6 +544,13 @@
                 <h1>Join Resident Villa</h1>
                 <p class="subtitle">Create your account and discover your perfect home</p>
             </div>
+
+            <!-- Show PHP messages -->
+            <?php if (!empty($message)): ?>
+                <div class="message <?php echo $messageType; ?>">
+                    <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
 
             <!-- Social login -->
             <div class="social-section">
@@ -483,7 +572,7 @@
             </div>
 
             <!-- Registration form -->
-            <form id="registrationForm" method="post">
+            <form id="registrationForm" method="post" action="">
                 <div class="form-grid">
                     <div class="form-row">
                         <div class="input-group">
@@ -540,41 +629,35 @@
         // Initialize EmailJS
         emailjs.init("IMBYADrcMPyNYpISy");
 
-        // Form handling
+        // Check if registration was successful and send email
+        <?php if ($registrationSuccess && $userRole === 'customer'): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                sendWelcomeEmail('<?php echo $userEmail; ?>', '<?php echo $userFirstName; ?>', '<?php echo $userLastName; ?>');
+                
+                // Redirect after 3 seconds
+                setTimeout(function() {
+                    window.location.href = 'signIn.php';
+                }, 3000);
+            });
+        <?php elseif ($registrationSuccess): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Redirect admin users without sending email
+                setTimeout(function() {
+                    window.location.href = 'signIn.php';
+                }, 3000);
+            });
+        <?php endif; ?>
+
+        // Form submission with loading state
         document.getElementById('registrationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
             const submitBtn = document.getElementById('submitBtn');
-            const formData = new FormData(this);
             
             // Show loading state
             submitBtn.classList.add('loading');
             submitBtn.disabled = true;
             
-            // Simulate form submission (replace with actual PHP handling)
-            setTimeout(() => {
-                // Simulate successful registration
-                showMessage('Registration successful! Redirecting to sign in...', 'success');
-                
-                // Send welcome email for customers
-                const email = formData.get('email');
-                const fname = formData.get('fname');
-                const lname = formData.get('lname');
-                
-                if (!email.startsWith('admin@')) {
-                    sendWelcomeEmail(email, fname, lname);
-                }
-                
-                // Reset form
-                submitBtn.classList.remove('loading');
-                submitBtn.disabled = false;
-                
-                // Redirect after delay
-                setTimeout(() => {
-                    window.location.href = 'signIn.php';
-                }, 3000);
-                
-            }, 2000);
+            // Let the form submit normally to PHP
+            // The loading state will be visible until page reloads
         });
 
         function sendWelcomeEmail(email, firstName, lastName) {
@@ -599,24 +682,6 @@
                 });
         }
 
-        function showMessage(text, type) {
-            const existingMessage = document.querySelector('.message');
-            if (existingMessage) {
-                existingMessage.remove();
-            }
-            
-            const message = document.createElement('div');
-            message.className = `message ${type}`;
-            message.textContent = text;
-            
-            const form = document.getElementById('registrationForm');
-            form.parentNode.insertBefore(message, form);
-            
-            setTimeout(() => {
-                message.remove();
-            }, 5000);
-        }
-
         // Enhanced input interactions
         document.querySelectorAll('.input-field').forEach(input => {
             input.addEventListener('focus', function() {
@@ -637,84 +702,5 @@
             }, 100);
         });
     </script>
-
-    <?php
-    // Keep the original PHP logic here
-    require_once __DIR__ . '/db/DatabaseConnection.php';
-
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-
-    $db = new DatabaseConnection();
-    $conn = $db->conn;
-
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        if (!empty($_POST['email']) && !empty($_POST['fname']) && !empty($_POST['lname']) && !empty($_POST['country']) && !empty($_POST['phone']) && !empty($_POST['password'])) {
-            
-            $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-            $fname = filter_var($_POST['fname'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $lname = filter_var($_POST['lname'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $country = filter_var($_POST['country'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $phone = filter_var($_POST['phone'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $password = $_POST['password'];
-
-            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-                $role = (strpos($email, 'admin@') === 0) ? 'admin' : 'customer';
-
-                $sql = "INSERT INTO UserAccounts (first_name, last_name, email, password_hash, user_role) VALUES (?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($sql);
-
-                if ($stmt) {
-                    $stmt->bind_param("sssss", $fname, $lname, $email, $hashedPassword, $role);
-
-                    if ($stmt->execute()) {
-                        echo "<script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                showMessage('Registration successful! Redirecting to sign in...', 'success');
-                                
-                                if ('$role' === 'customer') {
-                                    sendWelcomeEmail('$email', '$fname', '$lname');
-                                }
-                                
-                                setTimeout(function() {
-                                    window.location.href = 'signIn.php';
-                                }, 3000);
-                            });
-                        </script>";
-                    } else {
-                        echo "<script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                showMessage('Error: " . addslashes($stmt->error) . "', 'error');
-                            });
-                        </script>";
-                    }
-
-                    $stmt->close();
-                } else {
-                    echo "<script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            showMessage('Database error occurred', 'error');
-                        });
-                    </script>";
-                }
-            } else {
-                echo "<script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        showMessage('Invalid email format', 'error');
-                    });
-                </script>";
-            }
-        } else {
-            echo "<script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showMessage('Please fill all required fields', 'error');
-                });
-            </script>";
-        }
-    }
-
-    $db->closeConnection();
-    ?>
 </body>
 </html>

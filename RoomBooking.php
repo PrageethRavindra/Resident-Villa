@@ -63,14 +63,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmtBooking->bind_param("iiss", $customer_id, $roomNumber, $checkIn, $checkOut);
             
             if ($stmtBooking->execute()) {
-                echo "<script>alert('Booking created successfully.');</script>";
+                $booking_id = $stmtBooking->insert_id;
+
+                // Generate QR Code using online API (alternative to phpqrcode)
+                $qrData = "BOOKING_ID:$booking_id,CUSTOMER:$name,ROOM:$roomNumber,CHECK_IN:$checkIn,CHECK_OUT:$checkOut";
+                $qrCodeUrl = generateQRCodeURL($qrData);
+
                 echo "<script>
-                    var email = '".$email."';
-                    var name = '".$name."';
-                    window.onload = function() {
-                        sendEmail(email, name);
-                    };
+                    document.addEventListener('DOMContentLoaded', function() {
+                        alert('Booking created successfully! Booking ID: $booking_id');
+                        sendEmail('$email', '$name', '$qrCodeUrl', '$booking_id', '$roomType', '$checkIn', '$checkOut');
+                    });
                 </script>";
+
             } else {
                 error_log("SQL Error: " . $stmtBooking->error);
                 echo "<script>alert('Error: " . htmlspecialchars($stmtBooking->error) . "');</script>";
@@ -86,9 +91,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
+// Function to generate QR code URL using online service
+function generateQRCodeURL($data) {
+    $encodedData = urlencode($data);
+    $size = "200x200";
+    return "https://api.qrserver.com/v1/create-qr-code/?size=$size&data=$encodedData";
+}
+
 $db->closeConnection();
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -97,87 +108,171 @@ $db->closeConnection();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Room Booking Form</title>
     <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <link rel="stylesheet" type="text/css" href="css/style.css" />
-    <link rel="stylesheet" href="css/BookingRoom.css">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #e3f2fd; /* Light blue background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             margin: 0;
             padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+        
         .container {
-            max-width: 600px;
-            margin: auto;
-            background: #ffffff; /* White background for form */
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
         }
+        
         h1 {
             text-align: center;
-            color: #1976d2; /* Blue header */
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 600;
         }
-        .inpbox {
-            margin-bottom: 15px;
+        
+        .form-group {
+            margin-bottom: 20px;
         }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
         input, select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #bbb; /* Light gray border */
-            border-radius: 5px;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
             box-sizing: border-box;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
         }
-        button {
-            background-color: #1976d2; /* Blue button */
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 15px 30px;
+            border-radius: 10px;
             cursor: pointer;
             width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-top: 10px;
         }
-        button:hover {
-            background-color: #1565c0; /* Darker blue on hover */
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 20px;
+                padding: 30px 20px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Room Booking Form</h1>
+    <h1>🏨 Room Booking Form</h1>
     <form action="#" method="POST">
-        <div class="inpbox">
+        <div class="form-group">
             <label for="name">Full Name:</label>
-            <input type="text" id="name" name="name" required>
+            <input type="text" id="name" name="name" placeholder="Enter your full name" required>
         </div>
 
-        <div class="inpbox">
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
+        <div class="form-group">
+            <label for="email">Email Address:</label>
+            <input type="email" id="email" name="email" placeholder="Enter your email" required>
         </div>
 
-        <div class="inpbox">
+        <div class="form-group">
             <label for="room-type">Room Type:</label>
             <select id="room-type" name="room-type" required>
                 <option value="">Select a room type</option>
-                <option value="single">Single</option>
-                <option value="double">Double</option>
-                <option value="suite">Suite</option>
+                <option value="single">🛏️ Single Room</option>
+                <option value="double">🛏️🛏️ Double Room</option>
+                <option value="suite">✨ Suite</option>
             </select>
         </div>
 
-        <div class="inpbox">
-            <label for="check-in">Check-in Date:</label>
-            <input type="date" id="check-in" name="check-in" required>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="check-in">Check-in Date:</label>
+                <input type="date" id="check-in" name="check-in" required>
+            </div>
+
+            <div class="form-group">
+                <label for="check-out">Check-out Date:</label>
+                <input type="date" id="check-out" name="check-out" required>
+            </div>
         </div>
 
-        <div class="inpbox">
-            <label for="check-out">Check-out Date:</label>
-            <input type="date" id="check-out" name="check-out" required>
-        </div>
-
-        <button type="submit">Book Room</button>
+        <button type="submit" class="submit-btn">Book Room</button>
     </form>
 </div>
 
@@ -189,19 +284,41 @@ $db->closeConnection();
         });
     })();
 
-    function sendEmail(to_email, to_name) {
-        emailjs.send("service_71f1uuo", "template_7wux2ll", {
+    function sendEmail(to_email, to_name, qr_code_url, booking_id, room_type, check_in, check_out) {
+        const templateParams = {
             to_name: to_name,
             to_email: to_email,
-        })
+            booking_id: booking_id,
+            room_type: room_type,
+            check_in: check_in,
+            check_out: check_out,
+            qr_code_url: qr_code_url
+        };
+
+        emailjs.send("service_71f1uuo", "template_7wux2ll", templateParams)
         .then(function(response) {
             console.log('Email sent successfully:', response);
-            alert('Email sent successfully!');
+            alert('Booking confirmation email sent successfully!');
         }, function(error) {
             console.error('Email sending failed:', error);
-            alert('Email sending failed. Please try again later.');
+            alert('Booking created but email sending failed. Please contact support.');
         });
     }
+
+    // Set minimum date to today
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('check-in').setAttribute('min', today);
+        document.getElementById('check-out').setAttribute('min', today);
+        
+        // Update check-out minimum when check-in changes
+        document.getElementById('check-in').addEventListener('change', function() {
+            const checkInDate = new Date(this.value);
+            checkInDate.setDate(checkInDate.getDate() + 1);
+            const minCheckOut = checkInDate.toISOString().split('T')[0];
+            document.getElementById('check-out').setAttribute('min', minCheckOut);
+        });
+    });
 </script>
 
 </body>

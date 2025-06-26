@@ -1,0 +1,174 @@
+[26-Jun-2025 21:26:26 UTC] Driver ID: 19, Generated Email: driver_19@residentvilla.com, Raw Password: f4a8e505adfb8cd7
+[26-Jun-2025 21:26:26 UTC] Email content to be sent: Dear Deelaka Senal,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_19@residentvilla.com
+Password: f4a8e505adfb8cd7
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:30:53 UTC] Driver ID: 20, Generated Email: driver_20@residentvilla.com, Raw Password: 88c9651701b9c6c4
+[26-Jun-2025 21:30:53 UTC] Email content to be sent: Dear janith,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_20@residentvilla.com
+Password: 88c9651701b9c6c4
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:35:31 UTC] Driver ID: 21, Generated Email: driver_21@residentvilla.com, Raw Password: 0a2328c067148078
+[26-Jun-2025 21:35:31 UTC] Email content to be sent: Dear Deelaka Senal,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_21@residentvilla.com
+Password: 0a2328c067148078
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:37:23 UTC] Email content to be sent: Dear Deelaka Senal,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_22@residentvilla.com
+Password: Abc12345
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:38:44 UTC] Email content to be sent: Dear Deelaka Senal,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_23@residentvilla.com
+Password: Abc12345
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:44:48 UTC] Generated password: Abc12345
+[26-Jun-2025 21:44:48 UTC] Email content to be sent: Dear prageeth,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_24@residentvilla.com
+Password: Abc12345
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:46:07 UTC] Generated password: Abc12345
+[26-Jun-2025 21:46:07 UTC] Email content to be sent: Dear prageeth,
+
+Your driver account has been successfully created with Resident Villa. Below are your login credentials:
+
+Email: driver_25@residentvilla.com
+Password: Abc12345
+
+Please log in at https://residentvilla.com/login and change your password upon first login.
+
+For support, contact support@residentvilla.com.
+
+Best regards,
+The Resident Villa Team
+[26-Jun-2025 21:59:35 UTC] PHP Fatal error:  Uncaught Error: Call to a member function bind_param() on bool in C:\wamp64\www\Resident-Villa\Resident-Villa\SignIn.php:64
+Stack trace:
+#0 {main}
+  thrown in C:\wamp64\www\Resident-Villa\Resident-Villa\SignIn.php on line 64
+[26-Jun-2025 22:00:54 UTC] PHP Fatal error:  Uncaught Error: Call to a member function bind_param() on bool in C:\wamp64\www\Resident-Villa\Resident-Villa\SignIn.php:64
+Stack trace:
+#0 {main}
+  thrown in C:\wamp64\www\Resident-Villa\Resident-Villa\SignIn.php on line 64
+[26-Jun-2025 22:04:10 UTC] PHP Fatal error:  Uncaught Error: Call to a member function bind_param() on bool in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php:215
+Stack trace:
+#0 {main}
+  thrown in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php on line 215
+[26-Jun-2025 22:04:21 UTC] PHP Fatal error:  Uncaught Error: Call to a member function bind_param() on bool in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php:215
+Stack trace:
+#0 {main}
+  thrown in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php on line 215
+[26-Jun-2025 22:04:25 UTC] PHP Fatal error:  Uncaught Error: Call to a member function bind_param() on bool in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php:215
+Stack trace:
+#0 {main}
+  thrown in C:\wamp64\www\Resident-Villa\Resident-Villa\DriverDashboard.php on line 215
+[26-Jun-2025 22:10:31 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:10:31 UTC] Session driver_id: 25
+[26-Jun-2025 22:10:31 UTC] Bookings query prepare failed: Unknown column 'b.dropoff_location' in 'field list'
+[26-Jun-2025 22:10:51 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:10:51 UTC] Session driver_id: 25
+[26-Jun-2025 22:10:51 UTC] Bookings query prepare failed: Unknown column 'b.dropoff_location' in 'field list'
+[26-Jun-2025 22:13:44 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:13:44 UTC] Session driver_id: 25
+[26-Jun-2025 22:13:44 UTC] Bookings query prepare failed: Unknown column 'b.dropoff_location' in 'field list'
+[26-Jun-2025 22:17:25 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:17:25 UTC] Session driver_id: 25
+[26-Jun-2025 22:17:27 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:17:27 UTC] Session driver_id: 25
+[26-Jun-2025 22:17:41 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:17:41 UTC] Session driver_id: 25
+[26-Jun-2025 22:19:29 UTC] Unauthorized access attempt: email or driver_id not set
+[26-Jun-2025 22:19:51 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:19:51 UTC] Session driver_id: 25
+[26-Jun-2025 22:22:22 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:22:22 UTC] Session driver_id: 25
+[26-Jun-2025 22:37:57 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:37:57 UTC] Session driver_id: 25
+[26-Jun-2025 22:38:05 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:38:05 UTC] Session driver_id: 25
+[26-Jun-2025 22:38:06 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:38:06 UTC] Session driver_id: 25
+[26-Jun-2025 22:39:28 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:39:28 UTC] Session driver_id: 25
+[26-Jun-2025 22:40:25 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:40:25 UTC] Session driver_id: 25
+[26-Jun-2025 22:42:27 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:42:27 UTC] Session driver_id: 25
+[26-Jun-2025 22:43:07 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:43:07 UTC] Session driver_id: 25
+[26-Jun-2025 22:52:49 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:52:49 UTC] Session driver_id: 25
+[26-Jun-2025 22:57:27 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:57:27 UTC] Session driver_id: 25
+[26-Jun-2025 22:57:29 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:57:29 UTC] Session driver_id: 25
+[26-Jun-2025 22:58:34 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:58:34 UTC] Session driver_id: 25
+[26-Jun-2025 22:59:50 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 22:59:50 UTC] Session driver_id: 25
+[26-Jun-2025 23:41:00 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:41:00 UTC] Session driver_id: 25
+[26-Jun-2025 23:41:01 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:41:01 UTC] Session driver_id: 25
+[26-Jun-2025 23:41:20 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:41:20 UTC] Session driver_id: 25
+[26-Jun-2025 23:41:22 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:41:22 UTC] Session driver_id: 25
+[26-Jun-2025 23:42:13 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:42:13 UTC] Session driver_id: 25
+[26-Jun-2025 23:48:18 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:48:18 UTC] Session driver_id: 25
+[26-Jun-2025 23:48:19 UTC] Session email: driver_25@residentvilla.com
+[26-Jun-2025 23:48:19 UTC] Session driver_id: 25

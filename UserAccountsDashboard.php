@@ -10,7 +10,7 @@ session_start();
 // Database connection
 $servername = "localhost:3306";
 $username = "root";
-$password = "prageeth";
+$password = "Prageeth123";
 $dbname = "resident_villa";
 
 try {
