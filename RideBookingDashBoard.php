@@ -793,6 +793,12 @@ $stats = $stats_result->fetch_assoc();
             </a>
         </div>
         <div class="nav-item">
+            <a class="nav-link" href="staff/checkout.php">
+            <i class="fas fa-credit-card nav-icon"></i>
+                <span>Checkout</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a class="nav-link" href="logout.php">
                 <i class="fas fa-sign-out-alt nav-icon"></i>
                 <span>Logout</span>

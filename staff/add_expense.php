@@ -41,20 +41,59 @@ try {
 
     // Validate required fields
     $errors = [];
-    if (empty($booking_id)) $errors[] = "Booking ID is required";
+    if (empty($booking_id)) {
+        $errors[] = "Booking ID is required";
+    } else {
+        // Check booking status
+        $stmt = $conn->prepare('SELECT status FROM RoomBookings WHERE booking_id = ?');
+        if (!$stmt) {
+            throw new Exception('Prepare failed: ' . $conn->error);
+        }
+        $stmt->bind_param('i', $booking_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows === 0) {
+            $errors[] = "No booking found for booking ID $booking_id";
+        } else {
+            $row = $result->fetch_assoc();
+            if ($row['status'] === 'completed') {
+                $errors[] = "Cannot add expenses: Booking ID $booking_id is already completed";
+            }
+        }
+        $stmt->close();
+    }
     if (empty($item)) $errors[] = "Item name is required";
     if (empty($unit_price) || !is_numeric($unit_price) || $unit_price <= 0) $errors[] = "Valid unit price is required";
     if (empty($quantity) || !is_numeric($quantity) || $quantity <= 0) $errors[] = "Valid quantity is required";
     if (empty($added_by)) $errors[] = "Source is required";
 
+    // Display errors if any
     if ($errors) {
-        echo "<p style='color:red;'>Error:</p>";
-        echo "<ul>";
+        echo "<!DOCTYPE html>";
+        echo "<html lang='en'>";
+        echo "<head>";
+        echo "<meta charset='UTF-8'>";
+        echo "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+        echo "<title>Error - Resident-Villa</title>";
+        echo "<link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>";
+        echo "</head>";
+        echo "<body class='bg-light p-3'>";
+        echo "<div class='container mt-5'>";
+        echo "<div class='alert alert-danger text-center'>";
+        echo "<h4>❌ Error Adding Expense</h4>";
+        echo "<ul class='list-unstyled'>";
         foreach ($errors as $error) {
             echo "<li>" . htmlspecialchars($error) . "</li>";
         }
         echo "</ul>";
-        echo "<p><a href='javascript:history.back()'>← Go Back</a></p>";
+        echo "<p><a href='javascript:history.back()' class='btn btn-secondary'>← Go Back</a></p>";
+        echo "</div>";
+        echo "</div>";
+        echo "</body>";
+        echo "</html>";
+        $db->closeConnection();
+        ob_end_flush();
         exit;
     }
 
@@ -65,7 +104,7 @@ try {
     $sql = "INSERT INTO Expenses (booking_id, item_name, unit_price, quantity, total, added_by) VALUES (?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        die("SQL Prepare failed: " . $conn->error);
+        throw new Exception("SQL Prepare failed: " . $conn->error);
     }
 
     // Bind parameters
@@ -78,7 +117,7 @@ try {
         // Verify the inserted record
         $verify = $conn->prepare("SELECT * FROM Expenses WHERE expense_id = ?");
         if (!$verify) {
-            die("Verify query preparation failed: " . $conn->error);
+            throw new Exception("Verify query preparation failed: " . $conn->error);
         }
         $verify->bind_param("i", $inserted_id);
         if (!$verify->execute()) {
@@ -105,7 +144,7 @@ try {
         echo "<div class='container mt-5'>";
         echo "<div class='alert alert-success text-center'>";
         echo "<h4>✅ Expense Added Successfully!</h4>";
-        echo "<p><a href='cashier.php'>Click here to go now</a></p>";
+        echo "<p><a href='cashier.php' class='btn btn-primary'>Click here to go now</a></p>";
         echo "</div>";
         echo "</div>";
         echo "</body>";
@@ -115,18 +154,35 @@ try {
         echo "    window.location.href = 'cashier.php';";
         echo "}, 3000);";
         echo "</script>";
-
     } else {
-        echo "<p style='color:red;'>Error: Failed to add expense: " . htmlspecialchars($stmt->error) . "</p>";
-        echo "<p><a href='javascript:history.back()'>← Go Back</a></p>";
+        throw new Exception("Failed to add expense: " . $stmt->error);
     }
 
     $stmt->close();
     $db->closeConnection();
 
 } catch (Exception $e) {
-    echo "<p style='color:red;'>Error: " . htmlspecialchars($e->getMessage()) . "</p>";
-    echo "<p><a href='javascript:history.back()'>← Go Back</a></p>";
+    echo "<!DOCTYPE html>";
+    echo "<html lang='en'>";
+    echo "<head>";
+    echo "<meta charset='UTF-8'>";
+    echo "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+    echo "<title>Error - Resident-Villa</title>";
+    echo "<link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>";
+    echo "</head>";
+    echo "<body class='bg-light p-3'>";
+    echo "<div class='container mt-5'>";
+    echo "<div class='alert alert-danger text-center'>";
+    echo "<h4>❌ Error</h4>";
+    echo "<p>' . htmlspecialchars($e->getMessage()) . '</p>";
+    echo "<p><a href='javascript:history.back()' class='btn btn-secondary'>← Go Back</a></p>";
+    echo "</div>";
+    echo "</div>";
+    echo "</body>";
+    echo "</html>";
+    if (isset($db)) {
+        $db->closeConnection();
+    }
 }
 
 // End output buffering
