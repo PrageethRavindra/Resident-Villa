@@ -94,8 +94,8 @@
             <td id="check-out-date"></td>
           </tr>
           <tr>
-            <th>Total Expenses (Rs)</th>
-            <td id="total-expenses">0.00</td>
+            <th>Room Charges (Rs)</th>
+            <td id="room-charges">0.00</td>
           </tr>
           <tr>
             <th>Bar Expenses (Rs)</th>
@@ -108,6 +108,10 @@
           <tr>
             <th>Room Service Expenses (Rs)</th>
             <td id="room-service-expenses">0.00</td>
+          </tr>
+          <tr>
+            <th>Total Expenses (Rs)</th>
+            <td id="total-expenses">0.00</td>
           </tr>
         </tbody>
       </table>
@@ -125,6 +129,14 @@
     let isScanning = false;
     let bookingId = '';
     let bookingDetails = {};
+
+    // Room prices per night in LKR
+    const roomPrices = {
+      superior: 15000, // Superior Room: Rs 15,000 per night
+      deluxe: 20000,   // Deluxe Room: Rs 20,000 per night
+      signature: 30000, // Signature Room: Rs 30,000 per night
+      couple: 25000    // Couple Room: Rs 25,000 per night
+    };
 
     function setBookingId(displayId) {
       bookingId = displayId;
@@ -172,6 +184,24 @@
       }
     }
 
+    function calculateRoomCharges(checkInDate, checkOutDate, roomType) {
+      try {
+        const checkIn = new Date(checkInDate);
+        const checkOut = new Date(checkOutDate);
+        if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+          throw new Error('Invalid date format');
+        }
+        const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+        if (nights < 1) return 0;
+
+        const pricePerNight = roomPrices[roomType.toLowerCase()] || 15000; // Default to superior price if type is unknown
+        return nights * pricePerNight;
+      } catch (error) {
+        console.error('Error calculating room charges:', error);
+        return 0;
+      }
+    }
+
     function performCheckout() {
       if (!bookingId) return;
 
@@ -192,16 +222,23 @@
           }
 
           bookingDetails = data;
+          const roomCharges = calculateRoomCharges(data.check_in_date, data.check_out_date, data.room_type || 'superior');
+          const barExpenses = parseFloat(data.bar_expenses || 0);
+          const restaurantExpenses = parseFloat(data.restaurant_expenses || 0);
+          const roomServiceExpenses = parseFloat(data.room_service_expenses || 0);
+          const totalExpenses = roomCharges + barExpenses + restaurantExpenses + roomServiceExpenses;
+
           document.getElementById('invoice-booking-id').textContent = bookingId;
           document.getElementById('customer-name').textContent = data.customer_name || 'N/A';
           document.getElementById('customer-email').textContent = data.customer_email || 'N/A';
           document.getElementById('room-number').textContent = data.room_number || 'N/A';
           document.getElementById('check-in-date').textContent = data.check_in_date || 'N/A';
           document.getElementById('check-out-date').textContent = data.check_out_date || 'N/A';
-          document.getElementById('total-expenses').textContent = parseFloat(data.total_expenses || 0).toFixed(2);
-          document.getElementById('bar-expenses').textContent = parseFloat(data.bar_expenses || 0).toFixed(2);
-          document.getElementById('restaurant-expenses').textContent = parseFloat(data.restaurant_expenses || 0).toFixed(2);
-          document.getElementById('room-service-expenses').textContent = parseFloat(data.room_service_expenses || 0).toFixed(2);
+          document.getElementById('room-charges').textContent = roomCharges.toFixed(2);
+          document.getElementById('bar-expenses').textContent = barExpenses.toFixed(2);
+          document.getElementById('restaurant-expenses').textContent = restaurantExpenses.toFixed(2);
+          document.getElementById('room-service-expenses').textContent = roomServiceExpenses.toFixed(2);
+          document.getElementById('total-expenses').textContent = totalExpenses.toFixed(2);
           document.getElementById('invoice').style.display = 'block';
           document.getElementById('checkout-btn').disabled = true;
         })
@@ -244,14 +281,21 @@
           doc.setFontSize(14);
           doc.text('Expenses', 20, 115);
           doc.setFontSize(12);
+          const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.room_type || 'superior');
+          const barExpenses = parseFloat(bookingDetails.bar_expenses || 0);
+          const restaurantExpenses = parseFloat(bookingDetails.restaurant_expenses || 0);
+          const roomServiceExpenses = parseFloat(bookingDetails.room_service_expenses || 0);
+          const totalExpenses = roomCharges + barExpenses + restaurantExpenses + roomServiceExpenses;
+
           doc.autoTable({
             startY: 120,
             head: [['Description', 'Amount (Rs)']],
             body: [
-              ['Total Expenses', parseFloat(bookingDetails.total_expenses || 0).toFixed(2)],
-              ['Bar Expenses', parseFloat(bookingDetails.bar_expenses || 0).toFixed(2)],
-              ['Restaurant Expenses', parseFloat(bookingDetails.restaurant_expenses || 0).toFixed(2)],
-              ['Room Service Expenses', parseFloat(bookingDetails.room_service_expenses || 0).toFixed(2)]
+              ['Room Charges', roomCharges.toFixed(2)],
+              ['Bar Expenses', barExpenses.toFixed(2)],
+              ['Restaurant Expenses', restaurantExpenses.toFixed(2)],
+              ['Room Service Expenses', roomServiceExpenses.toFixed(2)],
+              ['Total Expenses', totalExpenses.toFixed(2)]
             ],
             theme: 'grid',
             headStyles: { fillColor: [0, 123, 255], textColor: [255, 255, 255] },
@@ -280,53 +324,20 @@
         return;
       }
 
-      // Check booking status from bookingDetails
-      if (!bookingDetails.status) {
-        console.error('Booking status not available');
-        document.getElementById('error-message').textContent = 
-          '❌ Cannot proceed: Booking status not available for booking ID ' + bookingId;
-        document.getElementById('error-message').style.display = 'block';
-        return;
-      }
-
-      // If status is not completed, attempt to update it
-      if (bookingDetails.status !== 'completed') {
-        fetch(`complete_checkout.php?booking_id=${encodeURIComponent(bookingId)}`, { method: 'POST' })
-          .then(response => {
-            // Log raw response for debugging
-            response.text().then(text => {
-              console.log('Raw response from complete_checkout.php:', text);
-            });
-            if (!response.ok) {
-              throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-            if (!data.success) {
-              throw new Error(data.error || 'Failed to update booking status');
-            }
-            // Status updated or already completed, proceed with PDF and email
-            proceedWithCheckout();
-          })
-          .catch(error => {
-            console.error('Error updating booking status:', error);
-            document.getElementById('error-message').textContent = 
-              '❌ Failed to update booking status: ' + error.message;
-            document.getElementById('error-message').style.display = 'block';
-          });
-      } else {
-        // Status is already completed, proceed directly
-        proceedWithCheckout();
-      }
-    }
-
-    function proceedWithCheckout() {
+      // Generate PDF and trigger download
       generatePDFInvoice().then(pdfBase64 => {
+        // Ensure bookingDetails.customer_email is valid
         const customerEmail = (bookingDetails.customer_email || '').trim();
-        console.log('Raw customer email:', bookingDetails.customer_email);
-        console.log('Trimmed customer email:', customerEmail);
+        console.log('Customer email from bookingDetails:', customerEmail);
 
+        // Calculate room charges for email
+        const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.room_type || 'superior');
+        const barExpenses = parseFloat(bookingDetails.bar_expenses || 0);
+        const restaurantExpenses = parseFloat(bookingDetails.restaurant_expenses || 0);
+        const roomServiceExpenses = parseFloat(bookingDetails.room_service_expenses || 0);
+        const totalExpenses = roomCharges + barExpenses + restaurantExpenses + roomServiceExpenses;
+
+        // Email parameters for EmailJS
         const templateParams = {
           to_name: bookingDetails.customer_name || 'Guest',
           to_email: customerEmail,
@@ -334,28 +345,49 @@
           room_number: bookingDetails.room_number || 'N/A',
           check_in_date: bookingDetails.check_in_date || 'N/A',
           check_out_date: bookingDetails.check_out_date || 'N/A',
-          total_expenses: parseFloat(bookingDetails.total_expenses || 0).toFixed(2),
-          bar_expenses: parseFloat(bookingDetails.bar_expenses || 0).toFixed(2),
-          restaurant_expenses: parseFloat(bookingDetails.restaurant_expenses || 0).toFixed(2),
-          room_service_expenses: parseFloat(bookingDetails.room_service_expenses || 0).toFixed(2)
+          room_charges: roomCharges.toFixed(2),
+          bar_expenses: barExpenses.toFixed(2),
+          restaurant_expenses: restaurantExpenses.toFixed(2),
+          room_service_expenses: roomServiceExpenses.toFixed(2),
+          total_expenses: totalExpenses.toFixed(2)
         };
 
+        // Debug logs
         console.log('templateParams:', templateParams);
         console.log('Sending email to:', templateParams.to_email);
 
-        if (!templateParams.to_email) {
-          console.error('Missing customer email:', templateParams.to_email || 'undefined');
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!templateParams.to_email || !emailRegex.test(templateParams.to_email)) {
+          console.error('Invalid or missing customer email:', templateParams.to_email || 'undefined');
           document.getElementById('error-message').textContent = 
-            `❌ Cannot send email: Customer email is missing for booking ID ${bookingId}`;
+            `❌ Cannot send email: Invalid or missing customer email (${templateParams.to_email || 'none'}) for booking ID ${bookingId}`;
           document.getElementById('error-message').style.display = 'block';
           return;
         }
 
+        // Send email using EmailJS
         emailjs.send("service_0w91rnv", "template_mtfikoq", templateParams)
           .then(response => {
             console.log('✅ Email sent successfully:', response);
-            alert('✔️ Checkout completed successfully! Invoice sent to ' + templateParams.to_email);
-            resetPage();
+
+            // Update booking status
+            fetch(`complete_checkout.php?booking_id=${encodeURIComponent(bookingId)}`, { method: 'POST' })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  alert('✔️ Checkout completed successfully! Invoice sent to ' + templateParams.to_email);
+                  resetPage();
+                } else {
+                  throw new Error(data.error || '❌ Failed to update booking status');
+                }
+              })
+              .catch(error => {
+                console.error('❗ Error updating booking status:', error);
+                document.getElementById('error-message').textContent = 
+                  '⚠️ Checkout email sent, but failed to update booking status: ' + error.message;
+                document.getElementById('error-message').style.display = 'block';
+              });
           })
           .catch(error => {
             console.error('❗ EmailJS error:', error);

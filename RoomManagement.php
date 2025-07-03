@@ -47,32 +47,77 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 
     try {
         switch ($_POST['action']) {
-            case 'update_status':
-                if (!empty($_POST['booking_id']) && !empty($_POST['status'])) {
-                    $booking_id = filter_var($_POST['booking_id'], FILTER_SANITIZE_NUMBER_INT);
-                    $status = filter_var($_POST['status'], FILTER_SANITIZE_STRING);
+            case 'add_room':
+                $room_type = filter_var($_POST['room_type'], FILTER_SANITIZE_STRING);
+                $price = filter_var($_POST['price'], FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+                $max_adults = filter_var($_POST['max_adults'], FILTER_SANITIZE_NUMBER_INT);
+                $max_children = filter_var($_POST['max_children'], FILTER_SANITIZE_NUMBER_INT);
 
-                    $validStatuses = ['pending', 'confirmed', 'cancelled', 'completed'];
-                    if (!in_array($status, $validStatuses)) {
-                        throw new Exception("Invalid status value");
-                    }
+                $stmt = $conn->prepare("INSERT INTO HotelRoom (room_type, price, max_adults, max_children) VALUES (?, ?, ?, ?)");
+                if (!$stmt) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+                $stmt->bind_param("sdii", $room_type, $price, $max_adults, $max_children);
 
-                    $stmt = $conn->prepare("UPDATE Bookings SET booking_status = ? WHERE booking_id = ?");
+                if ($stmt->execute()) {
+                    $message = "Room added successfully!";
+                    $messageType = "success";
+                } else {
+                    throw new Exception("Error adding room: " . $stmt->error);
+                }
+                $stmt->close();
+                break;
+
+            case 'update_room':
+                $room_id = filter_var($_POST['room_id'], FILTER_SANITIZE_NUMBER_INT);
+                $room_type = filter_var($_POST['room_type'], FILTER_SANITIZE_STRING);
+                $price = filter_var($_POST['price'], FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+                $max_adults = filter_var($_POST['max_adults'], FILTER_SANITIZE_NUMBER_INT);
+                $max_children = filter_var($_POST['max_children'], FILTER_SANITIZE_NUMBER_INT);
+
+                $stmt = $conn->prepare("UPDATE HotelRoom SET room_type = ?, price = ?, max_adults = ?, max_children = ? WHERE room_id = ?");
+                if (!$stmt) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+                $stmt->bind_param("sdiii", $room_type, $price, $max_adults, $max_children, $room_id);
+
+                if ($stmt->execute()) {
+                    $message = "Room updated successfully!";
+                    $messageType = "success";
+                } else {
+                    throw new Exception("Error updating room: " . $stmt->error);
+                }
+                $stmt->close();
+                break;
+
+            case 'delete_room':
+                $room_id = filter_var($_POST['room_id'], FILTER_SANITIZE_NUMBER_INT);
+
+                // First check if the room has any bookings
+                $check_stmt = $conn->prepare("SELECT COUNT(*) FROM RoomBookings WHERE room_id = ?");
+                $check_stmt->bind_param("i", $room_id);
+                $check_stmt->execute();
+                $check_result = $check_stmt->get_result();
+                $booking_count = $check_result->fetch_row()[0];
+                $check_stmt->close();
+
+                if ($booking_count > 0) {
+                    $message = "Cannot delete room with active bookings.";
+                    $messageType = "danger";
+                } else {
+                    $stmt = $conn->prepare("DELETE FROM HotelRoom WHERE room_id = ?");
                     if (!$stmt) {
                         throw new Exception("Prepare failed: " . $conn->error);
                     }
-                    $stmt->bind_param("si", $status, $booking_id);
+                    $stmt->bind_param("i", $room_id);
 
                     if ($stmt->execute()) {
-                        $message = "Booking status updated successfully!";
+                        $message = "Room deleted successfully!";
                         $messageType = "success";
                     } else {
-                        throw new Exception("Error updating booking status: " . $stmt->error);
+                        throw new Exception("Error deleting room: " . $stmt->error);
                     }
                     $stmt->close();
-                } else {
-                    $message = "Booking ID and status are required.";
-                    $messageType = "danger";
                 }
                 break;
 
@@ -88,7 +133,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         } else {
             $_SESSION['message'] = $message;
             $_SESSION['messageType'] = $messageType;
-            header('Location: BookingsDashboard.php');
+            header('Location: RoomManagement.php');
             exit;
         }
     } catch (Exception $e) {
@@ -102,31 +147,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         } else {
             $_SESSION['message'] = $message;
             $_SESSION['messageType'] = $messageType;
-            header('Location: BookingsDashboard.php');
+            header('Location: RoomManagement.php');
             exit;
         }
     }
 }
 
-// Fetch all bookings with customer information
-$bookings_query = $conn->prepare(
-    "SELECT b.booking_id, b.checkin_date, b.checkout_date, b.num_adults, b.num_children, 
-            b.total_guests, b.booking_status, b.created_at,
-            c.first_name, c.last_name, c.email
-     FROM Bookings b
-     JOIN Customers c ON b.customer_id = c.customer_id
-     ORDER BY b.checkin_date DESC, b.created_at DESC"
-);
-
-if (!$bookings_query) {
-    error_log("Bookings query prepare failed: " . $conn->error);
-    $message = "Error fetching bookings: " . $conn->error;
+// Fetch all rooms
+$rooms_query = $conn->prepare("SELECT * FROM HotelRoom ORDER BY room_type");
+if (!$rooms_query) {
+    error_log("Rooms query prepare failed: " . $conn->error);
+    $message = "Error fetching rooms: " . $conn->error;
     $messageType = "danger";
-    $bookings_result = null;
+    $rooms_result = null;
 } else {
-    $bookings_query->execute();
-    $bookings_result = $bookings_query->get_result();
-    $bookings_query->close();
+    $rooms_query->execute();
+    $rooms_result = $rooms_query->get_result();
+    $rooms_query->close();
 }
 
 // Close database connection
@@ -144,7 +181,7 @@ if (isset($conn)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bookings Dashboard - Resident Villa</title>
+    <title>Room Management - Resident Villa</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
@@ -336,17 +373,6 @@ if (isset($conn)) {
             border-color: #dc2626;
         }
 
-        .btn-warning {
-            background: var(--accent-yellow);
-            border-color: var(--accent-yellow);
-            color: white;
-        }
-
-        .btn-warning:hover {
-            background: #d97706;
-            border-color: #d97706;
-        }
-
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -404,7 +430,6 @@ if (isset($conn)) {
         .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--accent-yellow); }
         .badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); }
         .badge-primary { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
-        .badge-secondary { background: rgba(156, 163, 175, 0.1); color: var(--text-muted); }
 
         .form-control {
             background: var(--bg-tertiary);
@@ -588,13 +613,13 @@ if (isset($conn)) {
             </a>
         </div>
         <div class="nav-item">
-        <a class="nav-link" href="RoomManagement.php">
+        <a class="nav-link active" href="RoomManagement.php">
                 <i class="fas fa-hotel nav-icon"></i>
                 <span>Room management</span>
             </a>
         </div>
         <div class="nav-item">
-            <a class="nav-link active" href="RoomBookingDashBoard.php">
+            <a class="nav-link" href="RoomBookingDashBoard.php">
                 <i class="fas fa-bed nav-icon"></i>
                 <span>Room Bookings</span>
             </a>
@@ -643,18 +668,20 @@ if (isset($conn)) {
         </div>
     </nav>
 
-
     <main class="main-content">
         <div class="breadcrumb-container">
             <nav class="breadcrumb">
                 <a href="AdminDashboard.php">Home</a>
                 <span>/</span>
-                <span>Booking Management</span>
+                <span>Room Management</span>
             </nav>
         </div>
 
         <div class="page-header">
-            <h1 class="page-title"><i class="fas fa-calendar-check"></i> Booking Management</h1>
+            <h1 class="page-title"><i class="fas fa-bed"></i> Room Management</h1>
+            <button class="btn btn-primary" onclick="showAddRoomModal()">
+                <i class="fas fa-plus"></i> Add New Room
+            </button>
         </div>
 
         <div id="alert" class="alert <?php echo $message ? 'alert-' . $messageType : ''; ?>">
@@ -665,64 +692,48 @@ if (isset($conn)) {
         <div class="card fade-in">
             <div class="card-header">
                 <i class="fas fa-list"></i>
-                All Bookings
+                Hotel Rooms
             </div>
             <div class="card-body">
                 <div class="table-container">
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Booking ID</th>
-                                <th>Customer</th>
-                                <th>Check-in</th>
-                                <th>Check-out</th>
-                                <th>Guests</th>
-                                <th>Status</th>
-                                <th>Created At</th>
+                                <th>Room ID</th>
+                                <th>Room Type</th>
+                                <th>Price (LKR)</th>
+                                <th>Max Adults</th>
+                                <th>Max Children</th>
+                                <th>Total Capacity</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($bookings_result && $bookings_result->num_rows > 0): ?>
-                                <?php while ($booking = $bookings_result->fetch_assoc()): ?>
+                            <?php if ($rooms_result && $rooms_result->num_rows > 0): ?>
+                                <?php while ($room = $rooms_result->fetch_assoc()): ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($booking['booking_id']); ?></td>
+                                        <td><?php echo htmlspecialchars($room['room_id']); ?></td>
+                                        <td><?php echo htmlspecialchars($room['room_type']); ?></td>
+                                        <td><?php echo number_format($room['price'], 2); ?></td>
+                                        <td><?php echo htmlspecialchars($room['max_adults']); ?></td>
+                                        <td><?php echo htmlspecialchars($room['max_children']); ?></td>
+                                        <td><?php echo htmlspecialchars($room['total_capacity']); ?></td>
                                         <td>
-                                            <?php echo htmlspecialchars($booking['first_name'] . ' ' . $booking['last_name']); ?>
-                                            <br><small><?php echo htmlspecialchars($booking['email']); ?></small>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($booking['checkin_date']); ?></td>
-                                        <td><?php echo htmlspecialchars($booking['checkout_date']); ?></td>
-                                        <td>
-                                            <?php echo htmlspecialchars($booking['num_adults']); ?> Adults
-                                            <br><?php echo htmlspecialchars($booking['num_children']); ?> Children
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-<?php 
-                                                echo $booking['booking_status'] == 'confirmed' ? 'success' : 
-                                                    ($booking['booking_status'] == 'pending' ? 'warning' : 
-                                                    ($booking['booking_status'] == 'cancelled' ? 'danger' : 
-                                                    ($booking['booking_status'] == 'completed' ? 'primary' : 'secondary'))); ?>">
-                                                <?php echo ucfirst($booking['booking_status']); ?>
-                                            </span>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($booking['created_at']); ?></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary" onclick="showEditModal(
-                                                <?php echo $booking['booking_id']; ?>,
-                                                '<?php echo $booking['booking_status']; ?>'
-                                            )">
-                                                <i class="fas fa-edit"></i> Update
+                                            <button class="btn btn-sm btn-primary" onclick="showEditRoomModal(<?php echo htmlspecialchars(json_encode($room)); ?>)">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="confirmDeleteRoom(<?php echo $room['room_id']; ?>, '<?php echo htmlspecialchars($room['room_type']); ?>')">
+                                                <i class="fas fa-trash"></i> Delete
                                             </button>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="text-center">
+                                    <td colspan="7" class="text-center">
                                         <div class="py-4">
-                                            <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
-                                            <p class="text-muted">No bookings found</p>
+                                            <i class="fas fa-bed fa-3x text-muted mb-3"></i>
+                                            <p class="text-muted">No rooms found</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -734,31 +745,75 @@ if (isset($conn)) {
         </div>
     </main>
 
-    <!-- Edit Booking Modal -->
-    <div id="editModal" class="modal">
+    <!-- Add Room Modal -->
+    <div id="addRoomModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-edit"></i> Update Booking Status</h2>
-                <span class="close" onclick="closeEditModal()">×</span>
+                <h2 class="modal-title"><i class="fas fa-plus"></i> Add New Room</h2>
+                <span class="close" onclick="closeAddRoomModal()">×</span>
             </div>
-            <form id="editForm" method="POST" action="">
+            <form id="addRoomForm" method="POST" action="">
                 <div class="modal-body">
-                    <input type="hidden" name="action" value="update_status">
-                    <input type="hidden" name="booking_id" id="edit_booking_id">
+                    <input type="hidden" name="action" value="add_room">
                     <div class="form-group">
-                        <label for="edit_status">Booking Status</label>
-                        <select class="form-control" name="status" id="edit_status" required>
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="completed">Completed</option>
-                        </select>
+                        <label for="add_room_type">Room Type</label>
+                        <input type="text" class="form-control" name="room_type" id="add_room_type" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add_price">Price (LKR)</label>
+                        <input type="number" class="form-control" name="price" id="add_price" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add_max_adults">Max Adults</label>
+                        <input type="number" class="form-control" name="max_adults" id="add_max_adults" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="add_max_children">Max Children</label>
+                        <input type="number" class="form-control" name="max_children" id="add_max_children" min="0" required>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddRoomModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Update Status
+                        <i class="fas fa-save"></i> Save Room
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Room Modal -->
+    <div id="editRoomModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fas fa-edit"></i> Edit Room</h2>
+                <span class="close" onclick="closeEditRoomModal()">×</span>
+            </div>
+            <form id="editRoomForm" method="POST" action="">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="update_room">
+                    <input type="hidden" name="room_id" id="edit_room_id">
+                    <div class="form-group">
+                        <label for="edit_room_type">Room Type</label>
+                        <input type="text" class="form-control" name="room_type" id="edit_room_type" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_price">Price (LKR)</label>
+                        <input type="number" class="form-control" name="price" id="edit_price" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_max_adults">Max Adults</label>
+                        <input type="number" class="form-control" name="max_adults" id="edit_max_adults" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_max_children">Max Children</label>
+                        <input type="number" class="form-control" name="max_children" id="edit_max_children" min="0" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditRoomModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Update Room
                     </button>
                 </div>
             </form>
@@ -781,64 +836,133 @@ if (isset($conn)) {
             setTimeout(() => { alert.style.display = 'none'; }, 5000);
         }
 
-        function showEditModal(bookingId, currentStatus) {
-            document.getElementById('editModal').style.display = 'block';
-            document.getElementById('edit_booking_id').value = bookingId;
-            document.getElementById('edit_status').value = currentStatus;
+        function showAddRoomModal() {
+            document.getElementById('addRoomModal').style.display = 'block';
+            document.getElementById('addRoomForm').reset();
         }
 
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
+        function closeAddRoomModal() {
+            document.getElementById('addRoomModal').style.display = 'none';
         }
 
-        document.getElementById('editForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const originalContent = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<span class="spinner"></span> Updating...';
-    submitBtn.disabled = true;
+        function showEditRoomModal(room) {
+            document.getElementById('editRoomModal').style.display = 'block';
+            document.getElementById('edit_room_id').value = room.room_id;
+            document.getElementById('edit_room_type').value = room.room_type;
+            document.getElementById('edit_price').value = room.price;
+            document.getElementById('edit_max_adults').value = room.max_adults;
+            document.getElementById('edit_max_children').value = room.max_children;
+        }
 
-    const formData = new FormData(this);
+        function closeEditRoomModal() {
+            document.getElementById('editRoomModal').style.display = 'none';
+        }
 
-    // Update this line to use the correct path
-    fetch(window.location.href, {  // This uses the current page URL
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(response => {
-        // First check if the response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            return response.text().then(text => {
-                throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
+        function confirmDeleteRoom(roomId, roomType) {
+            if (confirm(`Are you sure you want to delete the room "${roomType}"?`)) {
+                const formData = new FormData();
+                formData.append('action', 'delete_room');
+                formData.append('room_id', roomId);
+
+                fetch('RoomManagement.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showAlert(data.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Delete room error:', error);
+                    showAlert('Error: ' + error.message, 'danger');
+                });
+            }
+        }
+
+        document.getElementById('addRoomForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalContent = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner"></span> Saving...';
+            submitBtn.disabled = true;
+
+            const formData = new FormData(this);
+
+            fetch('RoomManagement.php', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.innerHTML = originalContent;
+                submitBtn.disabled = false;
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    closeAddRoomModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Add room error:', error);
+                showAlert('Error: ' + error.message, 'danger');
+                submitBtn.innerHTML = originalContent;
+                submitBtn.disabled = false;
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        submitBtn.innerHTML = originalContent;
-        submitBtn.disabled = false;
-        if (data.success) {
-            showAlert(data.message, 'success');
-            closeEditModal();
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showAlert(data.message, 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Update error:', error);
-        showAlert('Error updating booking: ' + error.message, 'danger');
-        submitBtn.innerHTML = originalContent;
-        submitBtn.disabled = false;
-    });
-});
+        });
+
+        document.getElementById('editRoomForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalContent = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner"></span> Updating...';
+            submitBtn.disabled = true;
+
+            const formData = new FormData(this);
+
+            fetch('RoomManagement.php', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.innerHTML = originalContent;
+                submitBtn.disabled = false;
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    closeEditRoomModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Update room error:', error);
+                showAlert('Error: ' + error.message, 'danger');
+                submitBtn.innerHTML = originalContent;
+                submitBtn.disabled = false;
+            });
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             window.onclick = function(event) {
-                const editModal = document.getElementById('editModal');
+                const addModal = document.getElementById('addRoomModal');
+                const editModal = document.getElementById('editRoomModal');
+                
+                if (event.target === addModal) {
+                    closeAddRoomModal();
+                }
                 if (event.target === editModal) {
-                    closeEditModal();
+                    closeEditRoomModal();
                 }
             };
 

@@ -25,6 +25,72 @@
     <link rel="stylesheet" href="css/slicknav.css">
     <link rel="stylesheet" href="css/style.css">
     <!-- <link rel="stylesheet" href="css/responsive.css"> -->
+    <style>
+    /* Custom styles for compact yet comfortable glass buttons */
+    .header-buttons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .book_btn {
+        margin: 0;
+        height: 40px; /* Increased from 32px */
+    }
+    
+    .book_btn a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 14px;
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        border-radius: 20px; /* Adjusted to half of 40px height */
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 14px;
+        letter-spacing: 0.3px;
+        transition: all 0.15s ease;
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        height: 40px;
+        line-height: 1;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        white-space: nowrap;
+    }
+    
+    .book_btn a:hover {
+        background: rgba(255, 255, 255, 0.22);
+        transform: translateY(-0.5px);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+    
+    .user-profile {
+        display: flex;
+        align-items: center;
+        margin-left: 12px;
+        color: white;
+        font-weight: 500;
+        font-size: 13px;
+        white-space: nowrap; /* Ensures text stays in one line */
+    }
+    
+    .user-profile i {
+        margin-right: 5px;
+        font-size: 15px;
+    }
+    
+    @media (max-width: 1199px) {
+        .header-buttons {
+            gap: 6px;
+        }
+        .book_btn a {
+            padding: 0 12px;
+            font-size: 12px;
+        }
+    }
+</style>
 </head>
 
 <body>
@@ -44,24 +110,19 @@
                                     <ul id="navigation">
                                         <li><a class="active" href="index.php">home</a></li>
                                         <?php
+                                        session_start();
 
-session_start();
-
-// Check if the email session variable is set
-if(!isset($_SESSION['email'])) {
-    // Display the "LogIn" link if the email session variable is not set
-    echo '<li><a class="SignIn" href="SignIn.php">LogIn</a></li>';
-} else {
-    // Display the "Logout" button if the email session variable is set
-    echo '<li><a class="Logout" href="logout.php">Logout</a></li>';
-}
-?>
-
-
+                                        // Check if the email session variable is set
+                                        if(!isset($_SESSION['email'])) {
+                                            // Display the "LogIn" link if the email session variable is not set
+                                            echo '<li><a class="SignIn" href="SignIn.php">LogIn</a></li>';
+                                        } else {
+                                            // Display the "Logout" button if the email session variable is set
+                                            echo '<li><a class="Logout" href="logout.php">Logout</a></li>';
+                                        }
+                                        ?>
                                         <li><a href="rooms.php">rooms</a></li>
                                         <li><a href="about.html">About</a></li>
-                                            
-                                        </li>
                                         <li><a href="contact.html">Contact</a></li>
                                     </ul>
                                 </nav>
@@ -76,42 +137,29 @@ if(!isset($_SESSION['email'])) {
                         </div>
                         <div class="col-xl-5 col-lg-4 d-none d-lg-block">
                             <div class="book_room">
-                                <div class="socail_links">
-                                    <ul>
-                                        <li>
-                                            <a href="#">
-                                                <i class="fa fa-facebook-square"></i>
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a href="#">
-                                                <i class="fa fa-twitter"></i>
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a href="#">
-                                                <i class="fa fa-instagram"></i>
-                                            </a>
-                                        </li>
-                                    </ul>
+                                
+                                <div class="header-buttons">
+                                    <?php
+                                    // Check if the email session variable is set
+                                    if(isset($_SESSION['email'])) {
+                                        // Display the "Book A Room" link
+                                        echo '<div class="book_btn">';
+                                        echo '<a class="BookingRoom" href="RoomBooking.php">Book A Room</a>';
+                                        echo '</div>';
+
+                                        // Display the "Book A Ride" link
+                                        echo '<div class="book_btn">';
+                                        echo '<a class="BookingRide" href="BookingRide.php">Book A Ride</a>';
+                                        echo '</div>';
+                                        
+                                        // Display user profile
+                                        echo '<div class="user-profile">';
+                                        echo '<i class="fa fa-user-circle"></i>';
+                                        echo 'Hi, ' . (isset($_SESSION['name']) ? $_SESSION['name'] : 'User');
+                                        echo '</div>';
+                                    }
+                                    ?>
                                 </div>
-                                <?php
-//session_start();
-
-// Check if the email session variable is set
-if(isset($_SESSION['email'])) {
-    // Display the "Book A Room" link
-    echo '<div class="book_btn d-none d-lg-block">';
-    echo '<a class="BookingRoom" href="RoomBooking.php">Book A Room</a>';
-    echo '</div>';
-
-    // Display the "Book A Ride" link
-    echo '<div class="book_btn d-none d-lg-block">';
-    echo '<a class="BookingRide" href="BookingRide.php">Book A Ride</a>';
-    echo '</div>';
-}
-?>
-
                             </div>
                         </div>
                         <div class="col-12">
@@ -235,7 +283,7 @@ if(isset($_SESSION['email'])) {
                             <li>3 Adults & 2 Children size</li>
                             <li>Sea view side</li>
                         </ul>
-                        <a href="#" class="book_now">book now</a>
+                        <a href="RoomBooking.php" class="book_now">book now</a>
                     </div>
                 </div>
                 <div class="col-xl-4 col-md-4">
@@ -250,7 +298,7 @@ if(isset($_SESSION['email'])) {
                             <li>3 Adults & 2 Children size</li>
                             <li>Sea view side</li>
                         </ul>
-                        <a href="#" class="book_now">book now</a>
+                        <a href="RoomBooking.php" class="book_now">book now</a>
                     </div>
                 </div>
                 <div class="col-xl-4 col-md-4">
@@ -265,7 +313,7 @@ if(isset($_SESSION['email'])) {
                             <li>3 Adults & 2 Children size</li>
                             <li>Sea view side</li>
                         </ul>
-                        <a href="#" class="book_now">book now</a>
+                        <a href="RoomBooking.php" class="book_now">book now</a>
                     </div>
                 </div>
             </div>
@@ -339,7 +387,7 @@ if(isset($_SESSION['email'])) {
                             <span>From Rs.15000/night</span>
                             <h3>Superior Room</h3>
                         </div>
-                        <a href="#" class="line-button">book now</a>
+                        <a href="RoomBooking.php" class="line-button">book now</a>
                     </div>
                 </div>
             </div>
@@ -351,7 +399,7 @@ if(isset($_SESSION['email'])) {
                             <span>From Rs.10000/night</span>
                             <h3>Deluxe Room</h3>
                         </div>
-                        <a href="#" class="line-button">book now</a>
+                        <a href="RoomBooking.php" class="line-button">book now</a>
                     </div>
                 </div>
             </div>
@@ -363,7 +411,7 @@ if(isset($_SESSION['email'])) {
                             <span>From Rs.5000/night</span>
                             <h3>Signature Room</h3>
                         </div>
-                        <a href="#" class="line-button">book now</a>
+                        <a href="RoomBooking.php" class="line-button">book now</a>
                     </div>
                 </div>
             </div>
@@ -375,7 +423,7 @@ if(isset($_SESSION['email'])) {
                             <span>From Rs.7500/night</span>
                             <h3>Couple Room</h3>
                         </div>
-                        <a href="#" class="line-button">book now</a>
+                        <a href="RoomBooking.php" class="line-button">book now</a>
                     </div>
                 </div>
             </div>
@@ -511,9 +559,8 @@ if(isset($_SESSION['email'])) {
                 <div class="row">
                     <div class="col-xl-8 col-md-7 col-lg-9">
                         <p class="copy_right">
-                            
- <i class="fa fa-heart-o" aria-hidden="true"></i> by <a href="https://colorlib.com" target="_blank">ResidentVilla</a>
-
+                            <i class="fa fa-heart-o" aria-hidden="true"></i> by <a href="https://colorlib.com" target="_blank">ResidentVilla</a>
+                        </p>
                     </div>
                     <div class="col-xl-4 col-md-5 col-lg-3">
                         <div class="socail_links">
@@ -541,54 +588,52 @@ if(isset($_SESSION['email'])) {
         </div>
     </footer>
 
-    <!-- link that opens popup -->
-
     <!-- form itself end-->
-        <form id="test-form" class="white-popup-block mfp-hide">
-                <div class="popup_box ">
-                        <div class="popup_inner">
-                            <h3>Check Availability</h3>
-                            <form action="#">
-                                <div class="row">
-                                    <div class="col-xl-6">
-                                        <input id="datepicker" placeholder="Check in date">
-                                    </div>
-                                    <div class="col-xl-6">
-                                        <input id="datepicker2" placeholder="Check out date">
-                                    </div>
-                                    <div class="col-xl-6">
-                                        <select class="form-select wide" id="default-select" class="">
-                                            <option data-display="Adult">1</option>
-                                            <option value="1">2</option>
-                                            <option value="2">3</option>
-                                            <option value="3">4</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-xl-6">
-                                        <select class="form-select wide" id="default-select" class="">
-                                            <option data-display="Children">1</option>
-                                            <option value="1">2</option>
-                                            <option value="2">3</option>
-                                            <option value="3">4</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-xl-12">
-                                        <select class="form-select wide" id="default-select" class="">
-                                            <option data-display="Room type">Room type</option>
-                                            <option value="1">Laxaries Rooms</option>
-                                            <option value="2">Deluxe Room</option>
-                                            <option value="3">Signature Room</option>
-                                            <option value="4">Couple Room</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-xl-12">
-                                        <button type="submit" class="boxed-btn3">Check Availability</button>
-                                    </div>
-                                </div>
-                            </form>
+    <form id="test-form" class="white-popup-block mfp-hide">
+        <div class="popup_box ">
+            <div class="popup_inner">
+                <h3>Check Availability</h3>
+                <form action="#">
+                    <div class="row">
+                        <div class="col-xl-6">
+                            <input id="datepicker" placeholder="Check in date">
+                        </div>
+                        <div class="col-xl-6">
+                            <input id="datepicker2" placeholder="Check out date">
+                        </div>
+                        <div class="col-xl-6">
+                            <select class="form-select wide" id="default-select" class="">
+                                <option data-display="Adult">1</option>
+                                <option value="1">2</option>
+                                <option value="2">3</option>
+                                <option value="3">4</option>
+                            </select>
+                        </div>
+                        <div class="col-xl-6">
+                            <select class="form-select wide" id="default-select" class="">
+                                <option data-display="Children">1</option>
+                                <option value="1">2</option>
+                                <option value="2">3</option>
+                                <option value="3">4</option>
+                            </select>
+                        </div>
+                        <div class="col-xl-12">
+                            <select class="form-select wide" id="default-select" class="">
+                                <option data-display="Room type">Room type</option>
+                                <option value="1">Laxaries Rooms</option>
+                                <option value="2">Deluxe Room</option>
+                                <option value="3">Signature Room</option>
+                                <option value="4">Couple Room</option>
+                            </select>
+                        </div>
+                        <div class="col-xl-12">
+                            <button type="submit" class="boxed-btn3">Check Availability</button>
                         </div>
                     </div>
-            </form>
+                </form>
+            </div>
+        </div>
+    </form>
     <!-- form itself end -->
 
     <!-- JS here -->
@@ -623,20 +668,15 @@ if(isset($_SESSION['email'])) {
         $('#datepicker').datepicker({
             iconsLibrary: 'fontawesome',
             icons: {
-             rightIcon: '<span class="fa fa-caret-down"></span>'
-         }
+                rightIcon: '<span class="fa fa-caret-down"></span>'
+            }
         });
         $('#datepicker2').datepicker({
             iconsLibrary: 'fontawesome',
             icons: {
-             rightIcon: '<span class="fa fa-caret-down"></span>'
-         }
-
+                rightIcon: '<span class="fa fa-caret-down"></span>'
+            }
         });
     </script>
-
-
-
 </body>
-
 </html>

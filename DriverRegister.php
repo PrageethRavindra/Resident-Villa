@@ -1,64 +1,141 @@
 <?php
-// Include the DatabaseConnection class
-require_once __DIR__ . '/db/DatabaseConnection.php';
-
-// Enable error reporting for debugging
+// Enable error reporting for debugging (disable display_errors in production)
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0); // Disable display to prevent HTML output in AJAX
+ini_set('log_errors', 1); // Log errors to file
+ini_set('error_log', __DIR__ . '/error.log'); // Specify error log file
 
-// Start session for user authentication
+// Start session for user authentication and message storage
 session_start();
 
-// // Check if user is logged in
-// if (!isset($_SESSION['user_id'])) {
-//     header('Location: login.php');
-//     exit();
-// }
+// Include the DatabaseConnection class
+require_once __DIR__ . '/db/DatabaseConnection.php';
 
 // Create database connection
 try {
     $db = new DatabaseConnection();
     $conn = $db->conn;
 } catch (Exception $e) {
-    die("Database connection failed: " . $e->getMessage());
+    error_log("Database connection failed: " . $e->getMessage());
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    exit;
 }
 
-// Handle form submissions
+// Initialize message variables
 $message = '';
 $messageType = '';
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (isset($_POST['action'])) {
+// Check for session messages from redirect
+if (isset($_SESSION['message']) && isset($_SESSION['messageType'])) {
+    $message = $_SESSION['message'];
+    $messageType = $_SESSION['messageType'];
+    unset($_SESSION['message']);
+    unset($_SESSION['messageType']);
+}
+
+// Handle form submissions
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
+    try {
         switch ($_POST['action']) {
             case 'add_driver':
-                // Validate required fields
                 if (!empty($_POST['full_name']) && !empty($_POST['license_number']) && !empty($_POST['vehicle_number']) && !empty($_POST['phone'])) {
                     $full_name = filter_var($_POST['full_name'], FILTER_SANITIZE_STRING);
                     $license_number = filter_var($_POST['license_number'], FILTER_SANITIZE_STRING);
                     $vehicle_number = filter_var($_POST['vehicle_number'], FILTER_SANITIZE_STRING);
                     $phone = filter_var($_POST['phone'], FILTER_SANITIZE_STRING);
                     $status = filter_var($_POST['status'], FILTER_SANITIZE_STRING);
+                    $contact_email = !empty($_POST['email']) ? filter_var($_POST['email'], FILTER_SANITIZE_EMAIL) : '';
+                    $admin_password = !empty($_POST['password']) ? filter_var($_POST['password'], FILTER_SANITIZE_STRING) : '';
 
-                    try {
+                    if ($contact_email && !filter_var($contact_email, FILTER_VALIDATE_EMAIL)) {
+                        $message = "Invalid email address.";
+                        $messageType = "danger";
+                        $email_data = null;
+                    } else {
+                        $conn->begin_transaction();
+
                         $stmt = $conn->prepare("INSERT INTO Drivers (full_name, license_number, vehicle_number, phone, status) VALUES (?, ?, ?, ?, ?)");
                         $stmt->bind_param("sssss", $full_name, $license_number, $vehicle_number, $phone, $status);
 
                         if ($stmt->execute()) {
-                            $message = "Driver registered successfully!";
-                            $messageType = "success";
-                            // Email sending will be handled client-side
+                            $driver_id = $conn->insert_id;
+
+                            $name_parts = explode(' ', trim($full_name));
+                            $first_name = $name_parts[0];
+                            $last_name = isset($name_parts[1]) ? implode(' ', array_slice($name_parts, 1)) : '';
+
+                            $generated_email = "driver_$driver_id@residentvilla.com";
+                            // Use admin-entered password if provided, otherwise generate a random one
+                            $raw_password = $admin_password ?: bin2hex(random_bytes(8));
+                            $password_hash = password_hash($raw_password, PASSWORD_DEFAULT);
+
+                            $user_stmt = $conn->prepare("INSERT INTO UserAccounts (first_name, last_name, email, password_hash, user_role) VALUES (?, ?, ?, ?, ?)");
+                            $user_role = 'customer';
+                            $user_stmt->bind_param("sssss", $first_name, $last_name, $generated_email, $password_hash, $user_role);
+
+                            if ($user_stmt->execute()) {
+                                $conn->commit();
+                                $message = "Driver registered successfully!";
+                                $messageType = "success";
+                                // Prepare email content using the provided template
+                                $email_template = "Dear {{to_name}},\n\nYour driver account has been successfully created with Resident Villa. Below are your login credentials:\n\nEmail: {{to_email}}\nPassword: {{password}}\n\nPlease log in at https://residentvilla.com/login and change your password upon first login.\n\nFor support, contact support@residentvilla.com.\n\nBest regards,\nThe Resident Villa Team";
+                                $email_content = str_replace(
+                                    ['{{to_name}}', '{{to_email}}', '{{password}}'],
+                                    [$full_name, $generated_email, $raw_password],
+                                    $email_template
+                                );
+                                // Debug email content and password
+                                error_log("Generated password: $raw_password");
+                                error_log("Email content to be sent: $email_content");
+                                if (strpos($email_content, $raw_password) === false) {
+                                    error_log("Warning: Password not found in email content");
+                                }
+                                $email_data = [
+                                    'to_email' => $contact_email ?: $generated_email,
+                                    'to_name' => $full_name,
+                                    'password' => $raw_password,
+                                    'message' => $email_content
+                                ];
+                            } else {
+                                $conn->rollback();
+                                $message = "Error adding driver to user accounts: " . $user_stmt->error;
+                                $messageType = "danger";
+                                $email_data = null;
+                            }
+                            $user_stmt->close();
                         } else {
+                            $conn->rollback();
                             $message = "Error registering driver: " . $stmt->error;
                             $messageType = "danger";
+                            $email_data = null;
                         }
                         $stmt->close();
-                    } catch (Exception $e) {
-                        $message = "Error: " . $e->getMessage();
-                        $messageType = "danger";
                     }
                 } else {
                     $message = "Please fill all required fields.";
                     $messageType = "danger";
+                    $email_data = null;
+                }
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => $messageType === 'success',
+                        'message' => $message,
+                        'email_data' => $email_data
+                    ]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = $message;
+                    $_SESSION['messageType'] = $messageType;
+                    if ($email_data) {
+                        $_SESSION['email_data'] = $email_data;
+                    }
+                    header('Location: DriverRegister.php');
+                    exit;
                 }
                 break;
 
@@ -71,25 +148,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $status = filter_var($_POST['status'], FILTER_SANITIZE_STRING);
                     $driver_id = filter_var($_POST['driver_id'], FILTER_SANITIZE_NUMBER_INT);
 
-                    try {
-                        $stmt = $conn->prepare("UPDATE Drivers SET full_name = ?, license_number = ?, vehicle_number = ?, phone = ?, status = ? WHERE driver_id = ?");
-                        $stmt->bind_param("sssssi", $full_name, $license_number, $vehicle_number, $phone, $status, $driver_id);
+                    $stmt = $conn->prepare("UPDATE Drivers SET full_name = ?, license_number = ?, vehicle_number = ?, phone = ?, status = ? WHERE driver_id = ?");
+                    $stmt->bind_param("sssssi", $full_name, $license_number, $vehicle_number, $phone, $status, $driver_id);
 
-                        if ($stmt->execute()) {
-                            $message = "Driver updated successfully!";
-                            $messageType = "success";
-                        } else {
-                            $message = "Error updating driver: " . $stmt->error;
-                            $messageType = "danger";
-                        }
-                        $stmt->close();
-                    } catch (Exception $e) {
-                        $message = "Error: " . $e->getMessage();
+                    if ($stmt->execute()) {
+                        $message = "Driver updated successfully!";
+                        $messageType = "success";
+                    } else {
+                        $message = "Error updating driver: " . $stmt->error;
                         $messageType = "danger";
                     }
+                    $stmt->close();
                 } else {
                     $message = "Please fill all required fields.";
                     $messageType = "danger";
+                }
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => $messageType === 'success', 'message' => $message]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = $message;
+                    $_SESSION['messageType'] = $messageType;
+                    header('Location: DriverRegister.php');
+                    exit;
                 }
                 break;
 
@@ -97,47 +180,94 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (!empty($_POST['driver_id'])) {
                     $driver_id = filter_var($_POST['driver_id'], FILTER_SANITIZE_NUMBER_INT);
 
-                    try {
-                        $stmt = $conn->prepare("DELETE FROM Drivers WHERE driver_id = ?");
-                        $stmt->bind_param("i", $driver_id);
+                    $stmt = $conn->prepare("DELETE FROM Drivers WHERE driver_id = ?");
+                    $stmt->bind_param("i", $driver_id);
 
-                        if ($stmt->execute()) {
-                            $message = "Driver deleted successfully!";
-                            $messageType = "success";
-                        } else {
-                            $message = "Error deleting driver: " . $stmt->error;
-                            $messageType = "danger";
-                        }
-                        $stmt->close();
-                    } catch (Exception $e) {
-                        $message = "Error: " . $e->getMessage();
+                    if ($stmt->execute()) {
+                        $message = "Driver deleted successfully!";
+                        $messageType = "success";
+                    } else {
+                        $message = "Error deleting driver: " . $stmt->error;
                         $messageType = "danger";
                     }
+                    $stmt->close();
+                } else {
+                    $message = "Driver ID is required.";
+                    $messageType = "danger";
+                }
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => $messageType === 'success', 'message' => $message]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = $message;
+                    $_SESSION['messageType'] = $messageType;
+                    header('Location: DriverRegister.php');
+                    exit;
                 }
                 break;
+
+            default:
+                $message = "Invalid action.";
+                $messageType = "danger";
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => $message]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = $message;
+                    $_SESSION['messageType'] = $messageType;
+                    header('Location: DriverRegister.php');
+                    exit;
+                }
+        }
+    } catch (Exception $e) {
+        error_log("Action error: " . $e->getMessage());
+        $message = "Server error: " . $e->getMessage();
+        $messageType = "danger";
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $message]);
+            exit;
+        } else {
+            $_SESSION['message'] = $message;
+            $_SESSION['messageType'] = $messageType;
+            header('Location: DriverRegister.php');
+            exit;
         }
     }
 }
 
 // Fetch all drivers
-$drivers_query = "SELECT * FROM Drivers ORDER BY driver_id DESC";
-$drivers_result = $conn->query($drivers_query);
+try {
+    $drivers_query = "SELECT * FROM Drivers ORDER BY driver_id DESC";
+    $drivers_result = $conn->query($drivers_query);
 
-if (!$drivers_result) {
-    $message = "Error fetching drivers: " . $conn->error;
+    if (!$drivers_result) {
+        $message = "Error fetching drivers: " . $conn->error;
+        $messageType = "danger";
+    }
+} catch (Exception $e) {
+    error_log("Driver query error: " . $e->getMessage());
+    $message = "Error fetching drivers: " . $e->getMessage();
     $messageType = "danger";
+}
+
+// Check for email data to send after redirect
+$email_data = isset($_SESSION['email_data']) ? $_SESSION['email_data'] : null;
+if ($email_data) {
+    unset($_SESSION['email_data']);
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Driver Management - Resident Villa</title>
 
-    <!-- Modern CSS Framework -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
 
@@ -175,7 +305,6 @@ if (!$drivers_result) {
             overflow-x: hidden;
         }
 
-        /* Header */
         .header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -205,7 +334,6 @@ if (!$drivers_result) {
             font-size: 0.875rem;
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             left: 0;
@@ -251,14 +379,12 @@ if (!$drivers_result) {
             text-align: center;
         }
 
-        /* Main Content */
         .main-content {
             margin-left: 250px;
             padding: 2rem;
             min-height: calc(100vh - 73px);
         }
 
-        /* Breadcrumb */
         .breadcrumb-container {
             margin-bottom: 2rem;
         }
@@ -275,7 +401,6 @@ if (!$drivers_result) {
             text-decoration: none;
         }
 
-        /* Page Header */
         .page-header {
             display: flex;
             justify-content: space-between;
@@ -293,7 +418,6 @@ if (!$drivers_result) {
             -webkit-text-fill-color: transparent;
         }
 
-        /* Buttons */
         .btn {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -358,7 +482,6 @@ if (!$drivers_result) {
             border-color: var(--accent-blue);
         }
 
-        /* Card */
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -379,7 +502,6 @@ if (!$drivers_result) {
             padding: 1.5rem;
         }
 
-        /* Table */
         .table-container {
             overflow-x: auto;
         }
@@ -412,7 +534,6 @@ if (!$drivers_result) {
             background: var(--hover-bg);
         }
 
-        /* Status Badges */
         .badge {
             padding: 0.25rem 0.75rem;
             border-radius: 20px;
@@ -426,7 +547,6 @@ if (!$drivers_result) {
         .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--accent-yellow); }
         .badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); }
 
-        /* Form Elements */
         .form-control {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -452,7 +572,6 @@ if (!$drivers_result) {
             background-size: 12px;
         }
 
-        /* Alert */
         .alert {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -489,7 +608,6 @@ if (!$drivers_result) {
             opacity: 1;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -556,7 +674,6 @@ if (!$drivers_result) {
             color: var(--text-secondary);
         }
 
-        /* Layout */
         .row {
             display: flex;
             flex-wrap: wrap;
@@ -580,7 +697,6 @@ if (!$drivers_result) {
             }
         }
 
-        /* Responsive Design */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -596,7 +712,6 @@ if (!$drivers_result) {
             }
         }
 
-        /* Animations */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -606,7 +721,6 @@ if (!$drivers_result) {
             animation: fadeIn 0.6s ease-out;
         }
 
-        /* Loading States */
         .loading {
             color: var(--text-muted);
             display: flex;
@@ -629,9 +743,7 @@ if (!$drivers_result) {
         }
     </style>
 </head>
-
 <body>
-    <!-- Header -->
     <header class="header">
         <div class="logo">
             <i class="fas fa-building"></i> Resident Villa
@@ -644,12 +756,17 @@ if (!$drivers_result) {
         </div>
     </header>
 
-    <!-- Sidebar -->
     <nav class="sidebar">
         <div class="nav-item">
             <a class="nav-link" href="admin.php">
                 <i class="fas fa-chart-line nav-icon"></i>
                 <span>Overview</span>
+            </a>
+        </div>
+        <div class="nav-item">
+        <a class="nav-link" href="RoomManagement.php">
+                <i class="fas fa-hotel nav-icon"></i>
+                <span>Room management</span>
             </a>
         </div>
         <div class="nav-item">
@@ -702,9 +819,7 @@ if (!$drivers_result) {
         </div>
     </nav>
 
-    <!-- Main Content -->
     <main class="main-content">
-        <!-- Breadcrumb -->
         <div class="breadcrumb-container">
             <nav class="breadcrumb">
                 <a href="admin.php">Home</a>
@@ -713,7 +828,6 @@ if (!$drivers_result) {
             </nav>
         </div>
 
-        <!-- Page Header -->
         <div class="page-header">
             <h1 class="page-title"><i class="fas fa-id-card"></i> Driver Management</h1>
             <button class="btn">
@@ -721,14 +835,12 @@ if (!$drivers_result) {
             </button>
         </div>
 
-        <!-- Alert Messages -->
         <div id="alert" class="alert <?php echo $message ? 'alert-' . $messageType : ''; ?>">
             <?php echo htmlspecialchars($message); ?>
             <button type="button" class="btn-close"></button>
         </div>
 
         <div class="row">
-            <!-- Add Driver Form -->
             <div class="col-md-4">
                 <div class="card fade-in">
                     <div class="card-header">
@@ -760,6 +872,16 @@ if (!$drivers_result) {
                             </div>
                             
                             <div class="form-group">
+                                <label for="email">Contact Email (Optional)</label>
+                                <input type="email" class="form-control" name="email" id="email" placeholder="Enter contact email">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="password">Password (Optional)</label>
+                                <input type="password" class="form-control" name="password" id="password" placeholder="Enter password or leave blank to auto-generate">
+                            </div>
+                            
+                            <div class="form-group">
                                 <label for="status">Status</label>
                                 <select class="form-control" name="status" id="status" required>
                                     <option value="available">Available</option>
@@ -776,7 +898,6 @@ if (!$drivers_result) {
                 </div>
             </div>
 
-            <!-- Drivers Table -->
             <div class="col-md-8">
                 <div class="card fade-in">
                     <div class="card-header">
@@ -798,7 +919,7 @@ if (!$drivers_result) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if ($drivers_result->num_rows > 0): ?>
+                                    <?php if (isset($drivers_result) && $drivers_result->num_rows > 0): ?>
                                         <?php while ($driver = $drivers_result->fetch_assoc()): ?>
                                             <tr>
                                                 <td><?php echo htmlspecialchars($driver['driver_id']); ?></td>
@@ -840,7 +961,6 @@ if (!$drivers_result) {
         </div>
     </main>
 
-    <!-- Edit Driver Modal -->
     <div id="editDriverModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -882,16 +1002,15 @@ if (!$drivers_result) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Update Driver
                     </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -905,24 +1024,43 @@ if (!$drivers_result) {
                 <input type="hidden" name="action" value="delete_driver">
                 <input type="hidden" name="driver_id" id="delete_driver_id">
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
                     <button type="submit" class="btn btn-danger">
                         <i class="fas fa-trash"></i> Delete
                     </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@5/dist/email.min.js"></script>
-
-    <script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
         // Initialize EmailJS
         (function() {
             emailjs.init({
-                publicKey: 'YhHXAJvR7QvQoE4VR',
+                publicKey: "N_fSwhcbsNOCtVYHC"
             });
+        })();
+
+        // Function to send email with driver credentials
+        function sendEmail(to_email, to_name, password, message) {
+            console.log('Sending email with:', { to_email, to_name, password, message }); // Debug log
+            emailjs.send("service_ph6rrcl", "template_d7x63dh", {
+                to_name: to_name,
+                to_email: to_email,
+                password: password,
+                message: message
+            })
+            .then(function(response) {
+                console.log('Email sent successfully:', response);
+                showAlert('Driver credentials emailed successfully!', 'success');
+            }, function(error) {
+                console.error('Email sending failed:', error);
+                showAlert('Failed to send email: ' + error.text, 'danger');
+            });
+        }
+
         // Modal functions
         function editDriver(driver) {
             document.getElementById('edit_driver_id').value = driver.driver_id;
@@ -936,7 +1074,7 @@ if (!$drivers_result) {
 
         function deleteDriver(driverId) {
             document.getElementById('delete_driver_id').value = driverId;
-            document.getElementById('deleteDriverModal').style.display = 'block';
+            document.getElementById('deleteModal').style.display = 'block';
         }
 
         function closeEditModal() {
@@ -944,20 +1082,34 @@ if (!$drivers_result) {
         }
 
         function closeDeleteModal() {
-            document.getElementById('deleteDriverModal').style.display = 'none';
-        // Send confirmation email on successful registration
-        function sendEmail(to_email, to_name) {
-            emailjs.send("service_71f1uuo", "template_lwdo2vk", {
-                to_name: to_name,
-                to_email: to_email
-            })
-            .then(response => {
-                console.log('Email sent successfully:', response);
-                showAlert('Confirmation email sent successfully!', 'success');
-            }, error => {
-                console.error('Email sending failed:', error);
-                showAlert('Failed to send confirmation email.', 'danger');
-            });
+            document.getElementById('deleteModal').style.display = 'none';
+        }
+
+        // Show alert messages
+        function showAlert(message, type) {
+            console.log('Showing alert:', message, type);
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type} fade-in`;
+
+            // Use safe innerHTML and escape message
+            const safeMessage = document.createTextNode(message);
+            alert.innerHTML = ''; // Clear previous content
+            alert.appendChild(safeMessage);
+
+            // Create close button
+            const closeBtn = document.createElement('button');
+            closeBtn.setAttribute('type', 'button');
+            closeBtn.className = 'btn-close';
+            closeBtn.onclick = () => {
+                alert.style.display = 'none';
+            };
+
+            alert.appendChild(closeBtn);
+            alert.style.display = 'block';
+
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
         }
 
         // Form submission handlers
@@ -969,23 +1121,42 @@ if (!$drivers_result) {
             submitBtn.disabled = true;
 
             const formData = new FormData(this);
-            const fullName = formData.get('full_name');
 
             fetch('DriverRegister.php', {
                 method: 'POST',
-                body: formData)
-            .then(response => response.text())
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Fetch response:', data);
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
-                // Extract email from formData for EmailJS
-                const email = formData.get('email');
-                if (data.includes('success')) {
-                    sendEmail(email, fullName);
+                if (data.success) {
+                    showAlert('Driver registered successfully!', 'success');
+                    if (data.email_data) {
+                        sendEmail(
+                            data.email_data.to_email,
+                            data.email_data.to_name,
+                            data.email_data.password,
+                            data.email_data.message
+                        );
+                    }
+                    this.reset();
+                    refreshDriverTable();
+                } else {
+                    showAlert(data.message, 'danger');
                 }
-                window.location.reload(true);
             })
             .catch(error => {
+                console.error('Fetch error:', error);
                 showAlert('Error: ' + error.message, 'danger');
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
@@ -1003,16 +1174,30 @@ if (!$drivers_result) {
 
             fetch('DriverRegister.php', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
             })
-            .then(response => response.text())
-            .then(() => {
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
-                closeEditModal();
-                window.location.reload(true);
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    closeEditModal();
+                    refreshDriverTable();
+                } else {
+                    showAlert(data.message, 'danger');
+                }
             })
             .catch(error => {
+                console.error('Fetch error:', error);
                 showAlert('Error: ' + error.message, 'danger');
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
@@ -1030,38 +1215,77 @@ if (!$drivers_result) {
 
             fetch('DriverRegister.php', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
             })
-            .then(response => response.text())
-            .then(() => {
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
-                closeDeleteModal();
-                window.location.reload(true);
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    closeDeleteModal();
+                    refreshDriverTable();
+                } else {
+                    showAlert(data.message, 'danger');
+                }
             })
             .catch(error => {
+                console.error('Fetch error:', error);
                 showAlert('Error: ' + error.message, 'danger');
                 submitBtn.innerHTML = originalContent;
                 submitBtn.disabled = false;
             });
         });
 
-        // Show alert messages
-        function showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            alert.className = alert alert-${type} fade-in;
-            alert.innerHTML = ${message}<button type="button" class="btn-close"></button>;
-            alert.style.display = 'block';
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 5000);
+        // Refresh driver table without page reload
+        function refreshDriverTable() {
+            fetch('DriverRegister.php', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newTable = doc.querySelector('.table-container table tbody');
+                document.querySelector('.table-container table tbody').innerHTML = newTable.innerHTML;
+            })
+            .catch(error => {
+                console.error('Table refresh error:', error);
+                showAlert('Error refreshing table: ' + error.message, 'danger');
+            });
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Handle email sending for non-AJAX requests
+            <?php if ($email_data): ?>
+                console.log('Non-AJAX email data:', <?php echo json_encode($email_data); ?>);
+                sendEmail(
+                    '<?php echo htmlspecialchars($email_data['to_email'], ENT_QUOTES); ?>',
+                    '<?php echo htmlspecialchars($email_data['to_name'], ENT_QUOTES); ?>',
+                    '<?php echo htmlspecialchars($email_data['password'], ENT_QUOTES); ?>',
+                    '<?php echo htmlspecialchars($email_data['message'], ENT_QUOTES); ?>'
+                );
+            <?php endif; ?>
+
             // Close modals when clicking outside
             window.onclick = function(event) {
                 const editModal = document.getElementById('editDriverModal');
-                const deleteModal = document.getElementById('deleteDriverModal');
+                const deleteModal = document.getElementById('deleteModal');
                 if (event.target === editModal) {
                     closeEditModal();
                 }
@@ -1092,10 +1316,8 @@ if (!$drivers_result) {
                     cursor: pointer;
                     padding: 0.5rem;
                     display: none;
-                    @media (max-width: 768px) {
-                        display: block;
-                    }
                 `;
+                toggleBtn.style.setProperty('@media (max-width: 768px)', 'display: block;');
                 
                 toggleBtn.addEventListener('click', () => {
                     sidebar.style.transform = sidebar.style.transform === 'translateX(0px)' 
@@ -1180,13 +1402,19 @@ if (!$drivers_result) {
                     }, 1500);
                 });
             }
+
+            // Show initial PHP message if any
+            <?php if ($message): ?>
+                showAlert('<?php echo htmlspecialchars($message); ?>', '<?php echo $messageType; ?>');
+            <?php endif; ?>
         });
     </script>
 </body>
-
 </html>
 
 <?php
 // Close database connection
-$conn->close();
+if (isset($conn)) {
+    $conn->close();
+}
 ?>

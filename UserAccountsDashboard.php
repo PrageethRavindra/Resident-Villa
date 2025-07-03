@@ -720,6 +720,12 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </a>
         </div>
         <div class="nav-item">
+        <a class="nav-link" href="RoomManagement.php">
+                <i class="fas fa-hotel nav-icon"></i>
+                <span>Room management</span>
+            </a>
+        </div>
+        <div class="nav-item">
             <a class="nav-link" href="RoomBookingDashBoard.php">
                 <i class="fas fa-bed nav-icon"></i>
                 <span>Room Bookings</span>

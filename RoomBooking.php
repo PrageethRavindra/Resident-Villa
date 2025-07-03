@@ -1,34 +1,44 @@
 <?php
 require_once __DIR__ . '/db/DatabaseConnection.php';
 
-// Enable error display for debugging (remove after fixing)
+// Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/error_log.txt'); // Ensure this path is writable
+ini_set('error_log', __DIR__ . '/error_log.txt');
 
 $db = new DatabaseConnection();
 $conn = $db->conn;
 
-// Check database connection
 if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
+// Fetch available room types
+$room_types = [];
+$stmt = $conn->prepare("SELECT room_id, room_type, max_adults, max_children, price FROM HotelRoom");
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $room_types[] = $row;
+}
+$stmt->close();
+
+// Initialize variables
 $successMessage = '';
+$bookingDetails = [];
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (!empty($_POST['name']) && !empty($_POST['email']) && !empty($_POST['room-type']) && !empty($_POST['check-in']) && !empty($_POST['check-out'])) {
+    if (!empty($_POST['name']) && !empty($_POST['email']) && !empty($_POST['check-in']) && !empty($_POST['check-out']) && !empty($_POST['rooms'])) {
         
         // Sanitize inputs
-        $roomType = htmlspecialchars(trim($_POST['room-type']));
-        $checkIn = htmlspecialchars(trim($_POST['check-in']));
-        $checkOut = htmlspecialchars(trim($_POST['check-out']));
         $name = htmlspecialchars(trim($_POST['name']));
         $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
+        $checkIn = htmlspecialchars(trim($_POST['check-in']));
+        $checkOut = htmlspecialchars(trim($_POST['check-out']));
+        $rooms = $_POST['rooms'];
         
-        // Split full name into first and last name
+        // Split full name
         $nameParts = explode(" ", $name, 2);
         $firstName = $nameParts[0];
         $lastName = isset($nameParts[1]) ? $nameParts[1] : '';
@@ -44,126 +54,131 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } elseif ($checkOutDate <= $checkInDate) {
                 echo "<script>alert('Check-out date must be after check-in date.');</script>";
             } else {
-                // 1. Check if customer already exists
-                $stmt = $conn->prepare("SELECT customer_id FROM Customers WHERE email = ?");
-                if (!$stmt) {
-                    error_log("Prepare failed: " . $conn->error);
-                    die("Prepare failed: " . $conn->error);
-                }
-                $stmt->bind_param("s", $email);
-                $stmt->execute();
-                $stmt->store_result();
-                
-                if ($stmt->num_rows > 0) {
-                    $stmt->bind_result($customer_id);
-                    $stmt->fetch();
-                } else {
-                    // Insert new customer
-                    $stmtInsert = $conn->prepare("INSERT INTO Customers (first_name, last_name, email) VALUES (?, ?, ?)");
-                    if (!$stmtInsert) {
-                        error_log("Prepare failed: " . $conn->error);
-                        die("Prepare failed: " . $conn->error);
-                    }
-                    $stmtInsert->bind_param("sss", $firstName, $lastName, $email);
-                    if ($stmtInsert->execute()) {
-                        $customer_id = $stmtInsert->insert_id;
-                    } else {
-                        error_log("Error inserting customer: " . $stmtInsert->error);
-                        echo "<script>alert('Error creating customer. Please try again.');</script>";
-                    }
-                    $stmtInsert->close();
-                }
-                $stmt->close();
+                // Start transaction
+                $conn->begin_transaction();
 
-                // 2. Define available rooms
-                $roomConfig = [
-                    'superior' => ['count' => 2, 'base_number' => 101],
-                    'deluxe' => ['count' => 4, 'base_number' => 201],
-                    'signature' => ['count' => 1, 'base_number' => 301],
-                    'couple' => ['count' => 6, 'base_number' => 401]
-                ];
-
-                if (!array_key_exists($roomType, $roomConfig)) {
-                    echo "<script>alert('Invalid room type selected.');</script>";
-                } else {
-                    // 3. Check room availability
-                    $stmtCheck = $conn->prepare("
-                        SELECT room_number 
-                        FROM RoomBookings 
-                        WHERE room_number BETWEEN ? AND ? 
-                        AND (
-                            (check_in_date <= ? AND check_out_date > ?) 
-                            OR (check_in_date < ? AND check_out_date >= ?)
-                            OR (check_in_date >= ? AND check_out_date <= ?)
-                        )
-                    ");
-                    if (!$stmtCheck) {
-                        error_log("Prepare failed: " . $conn->error);
-                        die("Prepare failed: " . $conn->error);
-                    }
-                    $baseNumber = $roomConfig[$roomType]['base_number'];
-                    $maxNumber = $baseNumber + $roomConfig[$roomType]['count'] - 1;
-                    $stmtCheck->bind_param("iissssss", 
-                        $baseNumber, 
-                        $maxNumber, 
-                        $checkOut, 
-                        $checkIn, 
-                        $checkOut, 
-                        $checkIn, 
-                        $checkIn, 
-                        $checkOut
-                    );
-                    $stmtCheck->execute();
-                    $result = $stmtCheck->get_result();
+                try {
+                    // Check if customer exists
+                    $stmt = $conn->prepare("SELECT customer_id FROM Customers WHERE email = ?");
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $stmt->store_result();
                     
-                    $bookedRooms = [];
-                    while ($row = $result->fetch_assoc()) {
-                        $bookedRooms[] = $row['room_number'];
-                    }
-                    $stmtCheck->close();
-
-                    // Find available room
-                    $availableRoom = null;
-                    for ($i = $baseNumber; $i <= $maxNumber; $i++) {
-                        if (!in_array($i, $bookedRooms)) {
-                            $availableRoom = $i;
-                            break;
-                        }
-                    }
-
-                    if ($availableRoom === null) {
-                        echo "<script>alert('Sorry, no $roomType rooms available for the selected dates.');</script>";
+                    if ($stmt->num_rows > 0) {
+                        $stmt->bind_result($customer_id);
+                        $stmt->fetch();
                     } else {
-                        // 4. Insert room booking
-                        $stmtBooking = $conn->prepare("INSERT INTO RoomBookings (customer_id, room_number, check_in_date, check_out_date) VALUES (?, ?, ?, ?)");
-                        if (!$stmtBooking) {
-                            error_log("Prepare failed: " . $conn->error);
-                            die("Prepare failed: " . $conn->error);
-                        }
-                        $stmtBooking->bind_param("iiss", $customer_id, $availableRoom, $checkIn, $checkOut);
-                        
-                        if ($stmtBooking->execute()) {
-                            $booking_id = $stmtBooking->insert_id;
-
-                            // Generate QR Code
-                            $qrData = "BOOKING_ID:$booking_id,CUSTOMER:$name,ROOM:$availableRoom,CHECK_IN:$checkIn,CHECK_OUT:$checkOut";
-                            $qrCodeUrl = generateQRCodeURL($qrData);
-
-                            // Set success message
-                            $successMessage = "Booking created successfully! Booking ID: $booking_id, Room Number: $availableRoom";
-
-                            echo "<script>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    sendEmail('$email', '$name', '$qrCodeUrl', '$booking_id', '$roomType', '$checkIn', '$checkOut');
-                                });
-                            </script>";
-
-                        } else {
-                            error_log("SQL Error: " . $stmtBooking->error);
-                            echo "<script>alert('Error: " . htmlspecialchars($stmtBooking->error) . "');</script>";
-                        }
-                        $stmtBooking->close();
+                        // Insert new customer
+                        $stmtInsert = $conn->prepare("INSERT INTO Customers (first_name, last_name, email) VALUES (?, ?, ?)");
+                        $stmtInsert->bind_param("sss", $firstName, $lastName, $email);
+                        $stmtInsert->execute();
+                        $customer_id = $stmtInsert->insert_id;
+                        $stmtInsert->close();
                     }
+                    $stmt->close();
+
+                    // Validate and process room selections
+                    $total_adults = 0;
+                    $total_children = 0;
+                    $available_rooms = [];
+
+                    foreach ($rooms as $room) {
+                        $room_id = (int)$room['room_id'];
+                        $adults = (int)$room['adults'];
+                        $children = (int)$room['children'];
+
+                        // Validate room exists and get capacity
+                        $stmt = $conn->prepare("SELECT max_adults, max_children, price FROM HotelRoom WHERE room_id = ?");
+                        $stmt->bind_param("i", $room_id);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        if ($result->num_rows == 0) {
+                            throw new Exception("Invalid room ID: $room_id");
+                        }
+                        $room_data = $result->fetch_assoc();
+                        $stmt->close();
+
+                        // Validate capacity
+                        if ($adults > $room_data['max_adults'] || $children > $room_data['max_children']) {
+                            throw new Exception("Guest count exceeds room capacity for room ID: $room_id");
+                        }
+
+                        // Check availability
+                        $stmt = $conn->prepare("
+                            SELECT br.room_id 
+                            FROM BookedRooms br 
+                            JOIN Bookings b ON br.booking_id = b.booking_id
+                            WHERE br.room_id = ?
+                            AND (
+                                (b.checkin_date <= ? AND b.checkout_date > ?) 
+                                OR (b.checkin_date < ? AND b.checkout_date >= ?)
+                                OR (b.checkin_date >= ? AND b.checkout_date <= ?)
+                            )
+                        ");
+                        $stmt->bind_param("issssss", $room_id, $checkOut, $checkIn, $checkOut, $checkIn, $checkIn, $checkOut);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        if ($result->num_rows > 0) {
+                            throw new Exception("Room ID $room_id is not available for selected dates");
+                        }
+                        $stmt->close();
+
+                        $total_adults += $adults;
+                        $total_children += $children;
+                        $available_rooms[] = [
+                            'room_id' => $room_id,
+                            'adults' => $adults,
+                            'children' => $children,
+                            'price' => $room_data['price']
+                        ];
+                    }
+
+                    // Insert into Bookings
+                    $stmt = $conn->prepare("
+                        INSERT INTO Bookings (customer_id, checkin_date, checkout_date, num_adults, num_children, booking_status) 
+                        VALUES (?, ?, ?, ?, ?, 'confirmed')
+                    ");
+                    $stmt->bind_param("issii", $customer_id, $checkIn, $checkOut, $total_adults, $total_children);
+                    $stmt->execute();
+                    $booking_id = $stmt->insert_id;
+                    $stmt->close();
+
+                    // Insert into BookedRooms
+                    foreach ($available_rooms as $room) {
+                        $stmt = $conn->prepare("
+                            INSERT INTO BookedRooms (booking_id, room_id, assigned_adults, assigned_children, room_price, room_status) 
+                            VALUES (?, ?, ?, ?, ?, 'booked')
+                        ");
+                        $stmt->bind_param("iiiid", $booking_id, $room['room_id'], $room['adults'], $room['children'], $room['price']);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+
+                    // Generate QR Code
+                    $qrData = "BOOKING_ID:$booking_id,CUSTOMER:$name,CHECK_IN:$checkIn,CHECK_OUT:$checkOut";
+                    $qrCodeUrl = generateQRCodeURL($qrData);
+
+                    // Store booking details
+                    session_start();
+                    $_SESSION['booking_details'] = [
+                        'booking_id' => $booking_id,
+                        'rooms' => $available_rooms,
+                        'check_in' => $checkIn,
+                        'check_out' => $checkOut,
+                        'name' => $name,
+                        'email' => $email,
+                        'qr_code_url' => $qrCodeUrl
+                    ];
+
+                    // Commit transaction
+                    $conn->commit();
+
+                    header("Location: " . $_SERVER['PHP_SELF']);
+                    exit();
+
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    echo "<script>alert('Error: " . htmlspecialchars($e->getMessage()) . "');</script>";
                 }
             }
         } else {
@@ -174,7 +189,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Function to generate QR code URL
+// Check for successful booking
+session_start();
+if (isset($_SESSION['booking_details'])) {
+    $booking = $_SESSION['booking_details'];
+    $room_list = implode(', ', array_map(function($room) use ($room_types) {
+        $room_type = array_filter($room_types, function($rt) use ($room) { return $rt['room_id'] == $room['room_id']; });
+        $room_type = reset($room_type);
+        return $room_type['room_type'] . " (Adults: {$room['adults']}, Children: {$room['children']})";
+    }, $booking['rooms']));
+    $successMessage = "Booking created successfully! Booking ID: {$booking['booking_id']}, Rooms: $room_list";
+    
+    // Send email
+    echo "<script>
+        document.addEventListener('DOMContentLoaded', function() {
+            sendEmail('{$booking['email']}', '{$booking['name']}', '{$booking['qr_code_url']}', '{$booking['booking_id']}', 
+                     '$room_list', '{$booking['check_in']}', '{$booking['check_out']}');
+            setTimeout(function() {
+                window.location.href = 'index.php';
+            }, 2000);
+        });
+    </script>";
+    
+    unset($_SESSION['booking_details']);
+}
+
 function generateQRCodeURL($data) {
     $encodedData = urlencode($data);
     $size = "200x200";
@@ -188,184 +227,262 @@ $db->closeConnection();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta	loc="no-referrer-when-downgrade">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Room Booking Form</title>
+    <title>Room Booking - Hotel Reservation</title>
     <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('img/banner/banner2.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
         
         .container {
-            max-width: 500px;
+            max-width: 600px;
             width: 100%;
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur baffle(10px);
+            backdrop-filter: blur(10px);
             padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
-        h1 {
+        .header {
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
+            margin-bottom: 35px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
             font-size: 28px;
-            font-weight: 600;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
+            font-weight: 700;
             margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+        }
+        
+        .header p {
+            color: #6c757d;
             font-size: 14px;
         }
         
-        input, select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            box-sizing: border-box;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            background: white;
+        .form-group {
+            margin-bottom: 24px;
         }
         
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        select {
-            cursor: pointer;
-        }
-        
-        .submit-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color
-
-: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
             font-weight: 600;
-            transition: all 0.3s ease;
-            margin-top: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
         }
         
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.3);
-        }
+        .form-group input,
+        .form-group select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid rgba(0, 123, 255, 0.3);
+    border-radius: 8px;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.85);
+    color: #2c3e50;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
         
-        .submit-btn:active {
-            transform: translateY(0);
+        .form-group input:focus,
+        .form-group select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+    background: #fff;
+}
+        
+        .form-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+            padding-right: 40px;
         }
         
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 16px;
+        }
+        
+        .room-selection {
+            border: 1px solid #e9ecef;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+            position: relative;
+        }
+        
+        .room-selection .remove-room {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            cursor: pointer;
+            color: #dc3545;
+        }
+        
+        .submit-btn {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.6), rgba(0, 86, 179, 0.6));
+    color: #ffffff;
+    border: 1px solid rgba(0, 123, 255, 0.4);
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: uppercase;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 16px;
+    box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+}
+.submit-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.8), rgba(0, 86, 179, 0.8));
+    box-shadow: 0 10px 30px rgba(0, 123, 255, 0.4);
+    transform: translateY(-2px);
+}
+.submit-btn:active {
+    transform: translateY(0);
+}
+
+        
+        .success-message {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .error-message {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .add-room-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 16px;
         }
         
         @media (max-width: 600px) {
             .container {
-                margin: 20px;
-                padding: 30px 20px;
+                margin: 10px;
+                padding: 30px 24px;
             }
             
             .form-row {
                 grid-template-columns: 1fr;
             }
-            
-            h1 {
-                font-size: 24px;
-            }
-        }
-        
-        .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #c3e6cb;
-            text-align: center;
-        }
-        
-        .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #f5c6cb;
-            text-align: center;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🏨 Room Booking Form</h1>
+    <div class="header">
+        <h1>Room Booking</h1>
+        <p>Reserve your perfect accommodation</p>
+    </div>
+    
     <?php if ($successMessage): ?>
         <div class="success-message"><?php echo htmlspecialchars($successMessage); ?></div>
+        <div class="redirect-message">You will be redirected to the homepage in 5 seconds...</div>
+        <form id="bookingForm" style="display: none;"></form>
+    <?php else: ?>
+        <form action="#" method="POST" id="bookingForm">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" placeholder="Enter your full name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email address" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="check-in">Check-in Date</label>
+                    <input type="date" id="check-in" name="check-in" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="check-out">Check-out Date</label>
+                    <input type="date" id="check-out" name="check-out" required>
+                </div>
+            </div>
+
+            <div id="room-selections">
+                <div class="room-selection">
+                    <span class="remove-room" onclick="removeRoom(this)">×</span>
+                    <div class="form-group">
+                        <label>Room Type</label>
+                        <select name="rooms[0][room_id]" required>
+                            <option value="">Select room type</option>
+                            <?php foreach ($room_types as $room): ?>
+                                <option value="<?php echo $room['room_id']; ?>" 
+                                        data-max-adults="<?php echo $room['max_adults']; ?>" 
+                                        data-max-children="<?php echo $room['max_children']; ?>">
+                                    <?php echo htmlspecialchars($room['room_type']) . " ($" . $room['price'] . "/night)"; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Adults</label>
+                            <input type="number" name="rooms[0][adults]" min="0" max="10" value="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Children</label>
+                            <input type="number" name="rooms[0][children]" min="0" max="10" value="0" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="add-room-btn" onclick="addRoom()">Add Another Room</button>
+            <button type="submit" class="submit-btn" id="submitBtn">Reserve Rooms</button>
+        </form>
     <?php endif; ?>
-
-    <form action="#" method="POST">
-        <div class="form-group">
-            <label for="name">Full Name:</label>
-            <input type="text" id="name" name="name" placeholder="Enter your full name" required>
-        </div>
-
-        <div class="form-group">
-            <label for="email">Email Address:</label>
-            <input type="email" id="email" name="email" placeholder="Enter your email" required>
-        </div>
-
-        <div class="form-group">
-            <label for="room-type">Room Type:</label>
-            <select id="room-type" name="room-type" required>
-                <option value="">Select a room type</option>
-                <option value="superior">🏠 Superior Room (2 available)</option>
-                <option value="deluxe">🏡 Deluxe Room (4 available)</option>
-                <option value="signature">🏰 Signature Room (1 available)</option>
-                <option value="couple">💞 Couple Room (6 available)</option>
-            </select>
-        </div>
-
-        <div class="form-row">
-            <div class="form-group">
-                <label for="check-in">Check-in Date:</label>
-                <input type="date" id="check-in" name="check-in" required>
-            </div>
-
-            <div class="form-group">
-                <label for="check-out">Check-out Date:</label>
-                <input type="date" id="check-out" name="check-out" required>
-            </div>
-        </div>
-
-        <button type="submit" class="submit-btn">Book Room</button>
-    </form>
 </div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -376,12 +493,12 @@ $db->closeConnection();
         });
     })();
 
-    function sendEmail(to_email, to_name, qr_code_url, booking_id, room_type, check_in, check_out) {
+    function sendEmail(to_email, to_name, qr_code_url, booking_id, room_list, check_in, check_out) {
         const templateParams = {
             to_name: to_name,
             to_email: to_email,
             booking_id: booking_id,
-            room_type: room_type,
+            room_list: room_list,
             check_in: check_in,
             check_out: check_out,
             qr_code_url: qr_code_url
@@ -397,19 +514,93 @@ $db->closeConnection();
         });
     }
 
-    // Set minimum date to today
+    let roomCount = 1;
+
+    function addRoom() {
+        const roomSelections = document.getElementById('room-selections');
+        const newRoom = document.createElement('div');
+        newRoom.className = 'room-selection';
+        newRoom.innerHTML = `
+            <span class="remove-room" onclick="removeRoom(this)">×</span>
+            <div class="form-group">
+                <label>Room Type</label>
+                <select name="rooms[${roomCount}][room_id]" required>
+                    <option value="">Select room type</option>
+                    <?php foreach ($room_types as $room): ?>
+                        <option value="<?php echo $room['room_id']; ?>" 
+                                data-max-adults="<?php echo $room['max_adults']; ?>" 
+                                data-max-children="<?php echo $room['max_children']; ?>">
+                            <?php echo htmlspecialchars($room['room_type']) . " ($" . $room['price'] . "/night)"; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Adults</label>
+                    <input type="number" name="rooms[${roomCount}][adults]" min="0" max="10" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label>Children</label>
+                    <input type="number" name="rooms[${roomCount}][children]" min="0" max="10" value="0" required>
+                </div>
+            </div>
+        `;
+        roomSelections.appendChild(newRoom);
+        roomCount++;
+    }
+
+    function removeRoom(element) {
+        if (document.querySelectorAll('.room-selection').length > 1) {
+            element.parentElement.remove();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const today = new Date().toISOString().split('T')[0];
-        document.getElementById('check-in').setAttribute('min', today);
-        document.getElementById('check-out').setAttribute('min', today);
-        
-        // Update check-out minimum when check-in changes
-        document.getElementById('check-in').addEventListener('change', function() {
-            const checkInDate = new Date(this.value);
-            checkInDate.setDate(checkInDate.getDate() + 1);
-            const minCheckOut = checkInDate.toISOString().split('T')[0];
-            document.getElementById('check-out').setAttribute('min', minCheckOut);
-        });
+        const checkInInput = document.getElementById('check-in');
+        const checkOutInput = document.getElementById('check-out');
+        const form = document.getElementById('bookingForm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (checkInInput) {
+            checkInInput.setAttribute('min', today);
+            checkOutInput.setAttribute('min', today);
+
+            checkInInput.addEventListener('change', function() {
+                const checkInDate = new Date(this.value);
+                checkInDate.setDate(checkInDate.getDate() + 1);
+                const minCheckOut = checkInDate.toISOString().split('T')[0];
+                checkOutInput.setAttribute('min', minCheckOut);
+                
+                if (checkOutInput.value && checkOutInput.value <= this.value) {
+                    checkOutInput.value = '';
+                }
+            });
+
+            form.addEventListener('submit', function(e) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Processing...';
+                form.classList.add('form-loading');
+            });
+
+            // Dynamic input validation
+            document.getElementById('room-selections').addEventListener('change', function(e) {
+                if (e.target.tagName === 'SELECT' && e.target.name.includes('[room_id]')) {
+                    const roomSelection = e.target.closest('.room-selection');
+                    const adultsInput = roomSelection.querySelector('input[name*="[adults]"]');
+                    const childrenInput = roomSelection.querySelector('input[name*="[children]"]');
+                    const maxAdults = parseInt(e.target.selectedOptions[0].dataset.maxAdults) || 10;
+                    const maxChildren = parseInt(e.target.selectedOptions[0].dataset.maxChildren) || 10;
+                    
+                    adultsInput.max = maxAdults;
+                    childrenInput.max = maxChildren;
+                    
+                    if (parseInt(adultsInput.value) > maxAdults) adultsInput.value = maxAdults;
+                    if (parseInt(childrenInput.value) > maxChildren) childrenInput.value = maxChildren;
+                }
+            });
+        }
     });
 </script>
 

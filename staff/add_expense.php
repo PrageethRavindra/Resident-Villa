@@ -45,7 +45,7 @@ try {
         $errors[] = "Booking ID is required";
     } else {
         // Check booking status
-        $stmt = $conn->prepare('SELECT status FROM RoomBookings WHERE booking_id = ?');
+        $stmt = $conn->prepare('SELECT booking_status FROM Bookings WHERE booking_id = ?');
         if (!$stmt) {
             throw new Exception('Prepare failed: ' . $conn->error);
         }
@@ -57,7 +57,7 @@ try {
             $errors[] = "No booking found for booking ID $booking_id";
         } else {
             $row = $result->fetch_assoc();
-            if ($row['status'] === 'completed') {
+            if ($row['booking_status'] === 'completed') {
                 $errors[] = "Cannot add expenses: Booking ID $booking_id is already completed";
             }
         }
@@ -174,7 +174,7 @@ try {
     echo "<div class='container mt-5'>";
     echo "<div class='alert alert-danger text-center'>";
     echo "<h4>❌ Error</h4>";
-    echo "<p>' . htmlspecialchars($e->getMessage()) . '</p>";
+    echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
     echo "<p><a href='javascript:history.back()' class='btn btn-secondary'>← Go Back</a></p>";
     echo "</div>";
     echo "</div>";
