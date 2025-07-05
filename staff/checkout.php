@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Resident-Villa - Checkout</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.0"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -82,7 +82,7 @@
             <td id="customer-email"></td>
           </tr>
           <tr>
-            <th>Room Number</th>
+            <th>Room Numbers</th>
             <td id="room-number"></td>
           </tr>
           <tr>
@@ -130,14 +130,6 @@
     let bookingId = '';
     let bookingDetails = {};
 
-    // Room prices per night in LKR
-    const roomPrices = {
-      superior: 15000, // Superior Room: Rs 15,000 per night
-      deluxe: 20000,   // Deluxe Room: Rs 20,000 per night
-      signature: 30000, // Signature Room: Rs 30,000 per night
-      couple: 25000    // Couple Room: Rs 25,000 per night
-    };
-
     function setBookingId(displayId) {
       bookingId = displayId;
       document.getElementById('current-booking-display').textContent = displayId;
@@ -167,6 +159,8 @@
       if (html5QrCode && isScanning) {
         html5QrCode.stop().then(() => {
           isScanning = false;
+        }).catch(error => {
+          console.error('Error stopping QR scanner:', error);
         });
       }
     }
@@ -184,7 +178,7 @@
       }
     }
 
-    function calculateRoomCharges(checkInDate, checkOutDate, roomType) {
+    function calculateRoomCharges(checkInDate, checkOutDate, roomPrice) {
       try {
         const checkIn = new Date(checkInDate);
         const checkOut = new Date(checkOutDate);
@@ -193,9 +187,7 @@
         }
         const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
         if (nights < 1) return 0;
-
-        const pricePerNight = roomPrices[roomType.toLowerCase()] || 15000; // Default to superior price if type is unknown
-        return nights * pricePerNight;
+        return nights * (roomPrice || 15000); // Default to 15000 if roomPrice is missing
       } catch (error) {
         console.error('Error calculating room charges:', error);
         return 0;
@@ -222,7 +214,7 @@
           }
 
           bookingDetails = data;
-          const roomCharges = calculateRoomCharges(data.check_in_date, data.check_out_date, data.room_type || 'superior');
+          const roomCharges = calculateRoomCharges(data.check_in_date, data.check_out_date, data.total_room_price);
           const barExpenses = parseFloat(data.bar_expenses || 0);
           const restaurantExpenses = parseFloat(data.restaurant_expenses || 0);
           const roomServiceExpenses = parseFloat(data.room_service_expenses || 0);
@@ -231,7 +223,7 @@
           document.getElementById('invoice-booking-id').textContent = bookingId;
           document.getElementById('customer-name').textContent = data.customer_name || 'N/A';
           document.getElementById('customer-email').textContent = data.customer_email || 'N/A';
-          document.getElementById('room-number').textContent = data.room_number || 'N/A';
+          document.getElementById('room-number').textContent = data.room_numbers || 'N/A';
           document.getElementById('check-in-date').textContent = data.check_in_date || 'N/A';
           document.getElementById('check-out-date').textContent = data.check_out_date || 'N/A';
           document.getElementById('room-charges').textContent = roomCharges.toFixed(2);
@@ -273,7 +265,7 @@
           doc.setFontSize(14);
           doc.text('Booking Details', 20, 80);
           doc.setFontSize(12);
-          doc.text(`Room Number: ${bookingDetails.room_number || 'N/A'}`, 20, 90);
+          doc.text(`Room Numbers: ${bookingDetails.room_numbers || 'N/A'}`, 20, 90);
           doc.text(`Check-in Date: ${bookingDetails.check_in_date || 'N/A'}`, 20, 95);
           doc.text(`Check-out Date: ${bookingDetails.check_out_date || 'N/A'}`, 20, 100);
 
@@ -281,7 +273,7 @@
           doc.setFontSize(14);
           doc.text('Expenses', 20, 115);
           doc.setFontSize(12);
-          const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.room_type || 'superior');
+          const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.total_room_price);
           const barExpenses = parseFloat(bookingDetails.bar_expenses || 0);
           const restaurantExpenses = parseFloat(bookingDetails.restaurant_expenses || 0);
           const roomServiceExpenses = parseFloat(bookingDetails.room_service_expenses || 0);
@@ -331,7 +323,7 @@
         console.log('Customer email from bookingDetails:', customerEmail);
 
         // Calculate room charges for email
-        const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.room_type || 'superior');
+        const roomCharges = calculateRoomCharges(bookingDetails.check_in_date, bookingDetails.check_out_date, bookingDetails.total_room_price);
         const barExpenses = parseFloat(bookingDetails.bar_expenses || 0);
         const restaurantExpenses = parseFloat(bookingDetails.restaurant_expenses || 0);
         const roomServiceExpenses = parseFloat(bookingDetails.room_service_expenses || 0);
@@ -341,8 +333,9 @@
         const templateParams = {
           to_name: bookingDetails.customer_name || 'Guest',
           to_email: customerEmail,
+          to_email: customerEmail,
           booking_id: bookingId,
-          room_number: bookingDetails.room_number || 'N/A',
+          room_number: bookingDetails.room_numbers || 'N/A',
           check_in_date: bookingDetails.check_in_date || 'N/A',
           check_out_date: bookingDetails.check_out_date || 'N/A',
           room_charges: roomCharges.toFixed(2),
@@ -417,20 +410,33 @@
 
     function startScanner() {
       Html5Qrcode.getCameras().then(devices => {
-        if (devices.length > 0) {
-          html5QrCode = new Html5Qrcode("reader");
-          const cameraId = devices.find(device => 
-            device.label.toLowerCase().includes('back') ||
-            device.label.toLowerCase().includes('rear')
-          )?.id || devices[0].id;
-          html5QrCode.start(
-            cameraId,
-            { fps: 10, qrbox: 200 },
-            onScanSuccess
-          ).then(() => {
-            isScanning = true;
-          });
+        if (devices.length === 0) {
+          document.getElementById('error-message').textContent = 'No cameras found on this device';
+          document.getElementById('error-message').style.display = 'block';
+          return;
         }
+        html5QrCode = new Html5Qrcode("reader");
+        const cameraId = devices.find(device => 
+          device.label.toLowerCase().includes('back') ||
+          device.label.toLowerCase().includes('rear')
+        )?.id || devices[0].id;
+        console.log('Selected camera:', cameraId);
+        html5QrCode.start(
+          cameraId,
+          { fps: 10, qrbox: { width: 200, height: 200 } },
+          onScanSuccess
+        ).then(() => {
+          isScanning = true;
+          console.log('QR code scanner started successfully');
+        }).catch(error => {
+          console.error('Error starting QR scanner:', error);
+          document.getElementById('error-message').textContent = 'Failed to start camera: ' + error.message;
+          document.getElementById('error-message').style.display = 'block';
+        });
+      }).catch(error => {
+        console.error('Error accessing cameras:', error);
+        document.getElementById('error-message').textContent = 'Camera access denied: ' + error.message;
+        document.getElementById('error-message').style.display = 'block';
       });
     }
 

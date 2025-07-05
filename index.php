@@ -90,7 +90,7 @@
             font-size: 12px;
         }
     }
-</style>
+    </style>
 </head>
 
 <body>
@@ -227,6 +227,9 @@
     </div>
     <!-- slider_area_end -->
 
+
+
+    
     <!-- about_area_start -->
     <div class="about_area">
         <div class="container">
@@ -678,5 +681,165 @@
             }
         });
     </script>
+
+    <?php if (isset($_SESSION['email'])): ?>
+    <!-- Floating Feedback Widget -->
+    <style>
+    #feedback-widget {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 9999;
+        background: rgba(255,255,255,0.97);
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.13);
+        padding: 20px 22px 16px 22px;
+        width: 320px;
+        max-width: 90vw;
+        font-family: inherit;
+        display: none;
+        animation: fadeIn 0.4s;
+    }
+    #feedback-widget.open { display: block; }
+    #feedback-widget h4 { margin: 0 0 10px 0; font-size: 18px; }
+    #feedback-widget .stars {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 10px;
+    }
+    #feedback-widget .star {
+        font-size: 26px;
+        color: #ccc;
+        cursor: pointer;
+        transition: color 0.15s;
+    }
+    #feedback-widget .star.selected,
+    #feedback-widget .star:hover,
+    #feedback-widget .star:hover ~ .star { color: #f7b731; }
+    #feedback-widget textarea {
+        width: 100%;
+        min-height: 60px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        padding: 7px 10px;
+        margin-bottom: 10px;
+        resize: vertical;
+        font-size: 14px;
+    }
+    #feedback-widget .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+    #feedback-widget .btn {
+        background: #2d8cff;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    #feedback-widget .btn.cancel { background: #aaa; }
+    #feedback-widget .close-btn {
+        position: absolute;
+        top: 7px;
+        right: 12px;
+        font-size: 18px;
+        color: #888;
+        cursor: pointer;
+    }
+    #feedback-fab {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 9998;
+        background: #2d8cff;
+        color: #fff;
+        border-radius: 50%;
+        width: 54px;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    #feedback-fab:hover { background: #1b6edc; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: none; } }
+    </style>
+
+    <div id="feedback-fab" title="Give Feedback">
+        <i class="fa fa-commenting"></i>
+    </div>
+    <div id="feedback-widget">
+        <span class="close-btn" title="Close">&times;</span>
+        <h4>Your Feedback</h4>
+        <div class="stars" id="feedback-stars">
+            <span class="star" data-value="1">&#9733;</span>
+            <span class="star" data-value="2">&#9733;</span>
+            <span class="star" data-value="3">&#9733;</span>
+            <span class="star" data-value="4">&#9733;</span>
+            <span class="star" data-value="5">&#9733;</span>
+        </div>
+        <textarea id="feedback-text" placeholder="Share your experience..."></textarea>
+        <div class="actions">
+            <button class="btn cancel" type="button">Cancel</button>
+            <button class="btn submit" type="button">Submit</button>
+        </div>
+        <div id="feedback-success" style="display:none; color:green; margin-top:8px;">Thank you for your feedback!</div>
+    </div>
+    <script>
+    (function(){
+        // Show/hide widget
+        const fab = document.getElementById('feedback-fab');
+        const widget = document.getElementById('feedback-widget');
+        const closeBtn = widget.querySelector('.close-btn');
+        const cancelBtn = widget.querySelector('.btn.cancel');
+        const submitBtn = widget.querySelector('.btn.submit');
+        const stars = widget.querySelectorAll('.star');
+        const textarea = document.getElementById('feedback-text');
+        const successMsg = document.getElementById('feedback-success');
+        let selected = 0;
+
+        fab.onclick = () => { widget.classList.add('open'); fab.style.display='none'; }
+        closeBtn.onclick = cancelBtn.onclick = () => { widget.classList.remove('open'); fab.style.display='flex'; successMsg.style.display='none'; textarea.value=''; setStars(0);}
+        function setStars(val) {
+            selected = val;
+            stars.forEach((s,i)=>{ s.classList.toggle('selected', i<val); });
+        }
+        stars.forEach((star,i)=>{
+            star.onmouseover = ()=> setStars(i+1);
+            star.onmouseout = ()=> setStars(selected);
+            star.onclick = ()=> setStars(i+1);
+        });
+        submitBtn.onclick = () => {
+            if(selected===0) { alert('Please select a rating.'); return; }
+            if(textarea.value.trim().length<3) { alert('Please enter your feedback.'); return; }
+            fetch('save_feedback.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rating: selected, comment: textarea.value.trim()})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    successMsg.style.display='block';
+                    setTimeout(()=>{ widget.classList.remove('open'); fab.style.display='flex'; successMsg.style.display='none'; textarea.value=''; setStars(0); }, 1500);
+                } else {
+                    alert(data.message || 'Error saving feedback.');
+                }
+            })
+            .catch(()=>alert('Network error.'));
+        };
+        // Show FAB on load
+        fab.style.display = 'flex';
+    })();
+    </script>
+    <?php endif; ?>
+
 </body>
 </html>

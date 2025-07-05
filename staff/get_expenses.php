@@ -30,26 +30,25 @@ try {
     // Prepare and execute query to fetch expenses summary and customer/booking details
     $stmt = $conn->prepare('
         SELECT 
-            bes.booking_id,
-            bes.total_expenses,
-            bes.bar_expenses,
-            bes.restaurant_expenses,
-            bes.room_service_expenses,
+            b.booking_id,
             CONCAT(c.first_name, " ", c.last_name) AS customer_name,
             c.email AS customer_email,
-            rb.room_number,
-            rb.check_in_date,
-            rb.check_out_date
-        FROM BookingExpensesSummary bes
-        INNER JOIN RoomBookings rb ON bes.booking_id = rb.booking_id
-        INNER JOIN Customers c ON rb.customer_id = c.customer_id
-        WHERE bes.booking_id = ?
+            (SELECT GROUP_CONCAT(room_id SEPARATOR ", ") FROM BookedRooms WHERE booking_id = b.booking_id) AS room_numbers,
+            b.checkin_date AS check_in_date,
+            b.checkout_date AS check_out_date,
+            (SELECT COALESCE(SUM(room_price), 0) FROM BookedRooms WHERE booking_id = b.booking_id) AS total_room_price,
+            (SELECT COALESCE(SUM(total), 0) FROM Expenses WHERE booking_id = b.booking_id AND added_by = "Bar") AS bar_expenses,
+            (SELECT COALESCE(SUM(total), 0) FROM Expenses WHERE booking_id = b.booking_id AND added_by = "Restaurant") AS restaurant_expenses,
+            (SELECT COALESCE(SUM(total), 0) FROM Expenses WHERE booking_id = b.booking_id AND added_by = "Room Service") AS room_service_expenses
+        FROM Bookings b
+        INNER JOIN Customers c ON b.customer_id = c.customer_id
+        WHERE b.booking_id = ?
     ');
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
 
-    $stmt->bind_param('s', $booking_id);
+    $stmt->bind_param('i', $booking_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
@@ -66,7 +65,7 @@ try {
         }
         echo json_encode($data);
     } else {
-        echo json_encode(['error' => 'No expenses or booking found for this booking ID']);
+        echo json_encode(['error' => 'No booking or expenses found for this booking ID']);
     }
 } catch (Exception $e) {
     // Log error

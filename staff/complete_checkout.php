@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 
-// Enable error reporting for debugging (disable in production)
+// Enable error reporting for debugging
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', 'php_errors.log');
@@ -28,15 +28,24 @@ try {
     }
 
     // Prepare and execute query to update booking status
-    $stmt = $conn->prepare('UPDATE RoomBookings SET status = "completed" WHERE booking_id = ?');
+    $stmt = $conn->prepare('UPDATE Bookings SET booking_status = "completed" WHERE booking_id = ?');
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
 
-    $stmt->bind_param('s', $booking_id);
+    $stmt->bind_param('i', $booking_id);
     $stmt->execute();
 
     if ($stmt->affected_rows > 0) {
+        // Update BookedRooms status
+        $stmt_rooms = $conn->prepare('UPDATE BookedRooms SET room_status = "checked-out" WHERE booking_id = ?');
+        if (!$stmt_rooms) {
+            throw new Exception('Prepare failed for BookedRooms: ' . $conn->error);
+        }
+        $stmt_rooms->bind_param('i', $booking_id);
+        $stmt_rooms->execute();
+        $stmt_rooms->close();
+
         echo json_encode(['success' => true]);
     } else {
         throw new Exception('No booking found or already completed for booking ID ' . $booking_id);

@@ -151,7 +151,7 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
         /* Page Header */
         .page-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
             padding-bottom: 1rem;
@@ -456,7 +456,7 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
         </div>
 
         <div class="nav-item">
-        <a class="nav-link" href="RoomManagement.php">
+            <a class="nav-link" href="RoomManagement.php">
                 <i class="fas fa-hotel nav-icon"></i>
                 <span>Room management</span>
             </a>
@@ -494,13 +494,13 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
         </div>
         <div class="nav-item">
             <a class="nav-link" href="staff/cashier.php">
-            <i class="fas fa-cash-register nav-icon"></i>
+                <i class="fas fa-cash-register nav-icon"></i>
                 <span>Cashier</span>
             </a>
         </div>
         <div class="nav-item">
             <a class="nav-link" href="staff/checkout.php">
-            <i class="fas fa-credit-card nav-icon"></i>
+                <i class="fas fa-credit-card nav-icon"></i>
                 <span>Checkout</span>
             </a>
         </div>
@@ -611,11 +611,11 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
                     <?php
                     try {
                         $db = new DatabaseConnection();
-                        $sql = "SELECT COUNT(*) AS total FROM RoomBookings";
+                        $sql = "SELECT COUNT(*) AS total FROM Bookings";
                         $result = $db->conn->query($sql);
                         $totalBookings = $result ? $result->fetch_assoc()['total'] : 0;
                         
-                        $sql = "SELECT COUNT(*) AS active FROM RoomBookings WHERE status = 'confirmed' AND check_in_date <= CURDATE() AND check_out_date >= CURDATE()";
+                        $sql = "SELECT COUNT(*) AS active FROM Bookings WHERE booking_status = 'confirmed' AND checkin_date <= CURDATE() AND checkout_date >= CURDATE()";
                         $result = $db->conn->query($sql);
                         $activeBookings = $result ? $result->fetch_assoc()['active'] : 0;
                         
@@ -676,9 +676,9 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
                     <?php
                     try {
                         $db = new DatabaseConnection();
-                        $sql = "SELECT rb.booking_id, rb.room_number, rb.check_in_date, rb.check_out_date, rb.status,
+                        $sql = "SELECT rb.booking_id, rb.checkin_date, rb.checkout_date, rb.booking_status,
                                 CONCAT(c.first_name, ' ', c.last_name) AS customer_name
-                                FROM RoomBookings rb
+                                FROM Bookings rb
                                 JOIN Customers c ON rb.customer_id = c.customer_id
                                 ORDER BY rb.created_at DESC
                                 LIMIT 5";
@@ -688,16 +688,16 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
                         if ($result && $result->num_rows > 0) {
                             echo "<div class='table-container'>";
                             echo "<table class='table'>";
-                            echo "<thead><tr><th>Room</th><th>Customer</th><th>Check-in</th><th>Status</th></tr></thead>";
+                            echo "<thead><tr><th>Booking ID</th><th>Customer</th><th>Check-in</th><th>Status</th></tr></thead>";
                             echo "<tbody>";
                             
                             while ($row = $result->fetch_assoc()) {
-                                $statusClass = $row['status'] == 'confirmed' ? 'success' : ($row['status'] == 'canceled' ? 'danger' : 'warning');
+                                $statusClass = $row['booking_status'] == 'confirmed' ? 'success' : ($row['booking_status'] == 'cancelled' ? 'danger' : 'warning');
                                 echo "<tr>";
-                                echo "<td><strong>" . $row['room_number'] . "</strong></td>";
+                                echo "<td><strong>" . $row['booking_id'] . "</strong></td>";
                                 echo "<td>" . htmlspecialchars($row['customer_name']) . "</td>";
-                                echo "<td>" . date('M d, Y', strtotime($row['check_in_date'])) . "</td>";
-                                echo "<td><span class='badge badge-" . $statusClass . "'>" . ucfirst($row['status']) . "</span></td>";
+                                echo "<td>" . date('M d, Y', strtotime($row['checkin_date'])) . "</td>";
+                                echo "<td><span class='badge badge-" . $statusClass . "'>" . ucfirst($row['booking_status']) . "</span></td>";
                                 echo "</tr>";
                             }
                             
@@ -780,7 +780,7 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
                     <?php
                     try {
                         $db = new DatabaseConnection();
-                        $sql = "SELECT COUNT(*) AS checkins FROM RoomBookings WHERE check_in_date = CURDATE() AND status = 'confirmed'";
+                        $sql = "SELECT COUNT(*) AS checkins FROM Bookings WHERE checkin_date = CURDATE() AND booking_status = 'confirmed'";
                         $result = $db->conn->query($sql);
                         $checkins = $result ? $result->fetch_assoc()['checkins'] : 0;
                         
@@ -813,6 +813,44 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
                     }
                     ?>
                 </div>
+
+                <div class="status-item">
+                    <?php
+                    try {
+                        $db = new DatabaseConnection();
+                        $sql = "SELECT COUNT(*) AS checkouts FROM Bookings WHERE checkout_date = CURDATE() AND booking_status = 'confirmed'";
+                        $result = $db->conn->query($sql);
+                        $checkouts = $result ? $result->fetch_assoc()['checkouts'] : 0;
+                        
+                        echo "<div class='status-value' style='color: var(--accent-yellow);'>" . $checkouts . "</div>";
+                        echo "<div class='status-label'>Check-outs Today</div>";
+                        
+                        $db->closeConnection();
+                    } catch (Exception $e) {
+                        echo "<div class='status-value' style='color: var(--accent-red);'>-</div>";
+                        echo "<div class='status-label'>Error</div>";
+                    }
+                    ?>
+                </div>
+
+                <div class="status-item">
+                    <?php
+                    try {
+                        $db = new DatabaseConnection();
+                        $sql = "SELECT COALESCE(SUM(fare), 0) AS revenue FROM RideBookings WHERE booking_date = CURDATE() AND status != 'canceled'";
+                        $result = $db->conn->query($sql);
+                        $revenue = $result ? $result->fetch_assoc()['revenue'] : 0;
+                        
+                        echo "<div class='status-value' style='color: var(--accent-green);'>$" . number_format($revenue, 0) . "</div>";
+                        echo "<div class='status-label'>Today's Revenue</div>";
+                        
+                        $db->closeConnection();
+                    } catch (Exception $e) {
+                        echo "<div class='status-value' style='color: var(--accent-red);'>-</div>";
+                        echo "<div class='status-label'>Error</div>";
+                    }
+                    ?>
+                </div>
             </div>
         </div>
     </main>
@@ -828,8 +866,8 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
             // Stagger animation for stat cards
             const statCards = document.querySelectorAll('.stat-card');
             statCards.forEach((card, index) => {
-                card.style.animationDelay = ${index * 0.1}s;
-                card.classList.add('fade-in');
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.classList Blackstone: .add('fade-in');
             });
 
             // Hover effects for nav links
@@ -950,7 +988,7 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
             document.querySelectorAll('[title]').forEach(el => {
                 el.addEventListener('mouseenter', function() {
                     const tooltip = document.createElement('div');
-                    tooltip.textContent = this.getAttribute('title');
+                    tooltip.textContent = this.getAttribute('神経');
                     tooltip.style.cssText = `
                         position: absolute;
                         background: var(--bg-tertiary);
@@ -1058,42 +1096,4 @@ require_once __DIR__ . '/db/DatabaseConnection.php';
         document.head.appendChild(style);
     </script>
 </body>
-
-</html>                </div>
-
-                <div class="status-item">
-                    <?php
-                    try {
-                        $db = new DatabaseConnection();
-                        $sql = "SELECT COUNT(*) AS checkouts FROM RoomBookings WHERE check_out_date = CURDATE() AND status = 'confirmed'";
-                        $result = $db->conn->query($sql);
-                        $checkouts = $result ? $result->fetch_assoc()['checkouts'] : 0;
-                        
-                        echo "<div class='status-value' style='color: var(--accent-yellow);'>" . $checkouts . "</div>";
-                        echo "<div class='status-label'>Check-outs Today</div>";
-                        
-                        $db->closeConnection();
-                    } catch (Exception $e) {
-                        echo "<div class='status-value' style='color: var(--accent-red);'>-</div>";
-                        echo "<div class='status-label'>Error</div>";
-                    }
-                    ?>
-                </div>
-
-                <div class="status-item">
-                    <?php
-                    try {
-                        $db = new DatabaseConnection();
-                        $sql = "SELECT COALESCE(SUM(fare), 0) AS revenue FROM RideBookings WHERE booking_date = CURDATE() AND status != 'canceled'";
-                        $result = $db->conn->query($sql);
-                        $revenue = $result ? $result->fetch_assoc()['revenue'] : 0;
-                        
-                        echo "<div class='status-value' style='color: var(--accent-green);'>$" . number_format($revenue, 0) . "</div>";
-                        echo "<div class='status-label'>Today's Revenue</div>";
-                        
-                        $db->closeConnection();
-                    } catch (Exception $e) {
-                        echo "<div class='status-value' style='color: var(--accent-red);'>-</div>";
-                        echo "<div class='status-label'>Error</div>";
-                    }
-                    ?>
+</html>
