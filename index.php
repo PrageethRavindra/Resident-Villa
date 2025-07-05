@@ -228,7 +228,139 @@
     <!-- slider_area_end -->
 
 
+<?php
+require_once __DIR__ . '/db/DatabaseConnection.php';
+$db = new DatabaseConnection();
+$conn = $db->conn;
 
+// Fetch latest feedbacks with user info
+$feedbacks = [];
+$sql = "SELECT f.rating, f.comment, f.created_at, u.first_name, u.last_name 
+        FROM Feedback f 
+        JOIN UserAccounts u ON f.user_id = u.user_id 
+        ORDER BY f.created_at DESC LIMIT 8";
+$result = $conn->query($sql);
+if ($result && $result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $feedbacks[] = $row;
+    }
+}
+?>
+<!-- Feedbacks Section Start -->
+<style>
+.feedbacks-section {
+    background: linear-gradient(135deg, #f8fafc 0%, #e9eafc 100%);
+    padding: 56px 0 36px 0;
+}
+.feedbacks-title {
+    text-align: center;
+    font-size: 2.1rem;
+    font-weight: 700;
+    margin-bottom: 18px;
+    color: #2d2d2d;
+    letter-spacing: 0.5px;
+}
+.feedbacks-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    justify-content: center;
+}
+.feedback-card {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 4px 18px rgba(60,80,180,0.07);
+    padding: 28px 26px 20px 26px;
+    max-width: 340px;
+    min-width: 260px;
+    flex: 1 1 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+    transition: box-shadow 0.18s;
+}
+.feedback-card:hover {
+    box-shadow: 0 8px 32px rgba(60,80,180,0.13);
+}
+.feedback-user {
+    font-weight: 600;
+    color: #2d8cff;
+    font-size: 1.08rem;
+    margin-bottom: 4px;
+}
+.feedback-date {
+    font-size: 0.92rem;
+    color: #888;
+    margin-bottom: 10px;
+}
+.feedback-stars {
+    margin-bottom: 10px;
+}
+.feedback-stars .fa-star {
+    color: #f7b731;
+    font-size: 1.1rem;
+    margin-right: 2px;
+}
+.feedback-stars .fa-star-o {
+    color: #e0e0e0;
+    font-size: 1.1rem;
+    margin-right: 2px;
+}
+.feedback-comment {
+    font-size: 1.04rem;
+    color: #333;
+    margin-bottom: 0;
+    line-height: 1.5;
+    min-height: 48px;
+}
+@media (max-width: 900px) {
+    .feedbacks-grid { flex-direction: column; align-items: center; }
+    .feedback-card { max-width: 98vw; }
+}
+</style>
+<section class="feedbacks-section">
+    <div class="container">
+        <div class="feedbacks-title">
+            <i class="fa fa-comments-o" style="color:#2d8cff"></i> What Our Guests Say
+        </div>
+        <div class="feedbacks-grid">
+            <?php if (count($feedbacks) === 0): ?>
+                <div style="color:#888; font-size:1.1rem; text-align:center;">No feedbacks yet. Be the first to share your experience!</div>
+            <?php else: ?>
+                <?php foreach ($feedbacks as $fb): ?>
+                    <div class="feedback-card">
+                        <div class="feedback-user">
+                            <i class="fa fa-user-circle"></i>
+                            <?php echo htmlspecialchars($fb['first_name'] . ' ' . $fb['last_name']); ?>
+                        </div>
+                        <div class="feedback-date">
+                            <i class="fa fa-calendar"></i>
+                            <?php echo date('M d, Y', strtotime($fb['created_at'])); ?>
+                        </div>
+                        <div class="feedback-stars">
+                            <?php
+                            $rating = (int)$fb['rating'];
+                            for ($i = 1; $i <= 5; $i++) {
+                                if ($i <= $rating) {
+                                    echo '<i class="fa fa-star"></i>';
+                                } else {
+                                    echo '<i class="fa fa-star-o"></i>';
+                                }
+                            }
+                            ?>
+                        </div>
+                        <div class="feedback-comment">
+                            <i class="fa fa-quote-left" style="color:#2d8cff"></i>
+                            <?php echo nl2br(htmlspecialchars($fb['comment'])); ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+<!-- Feedbacks Section End -->
     
     <!-- about_area_start -->
     <div class="about_area">
@@ -387,7 +519,7 @@
                     <img src="img/rooms/1.png" alt="">
                     <div class="room_heading d-flex justify-content-between align-items-center">
                         <div class="room_heading_inner">
-                            <span>From Rs.15000/night</span>
+                            
                             <h3>Superior Room</h3>
                         </div>
                         <a href="RoomBooking.php" class="line-button">book now</a>
@@ -399,7 +531,7 @@
                     <img src="img/rooms/2.png" alt="">
                     <div class="room_heading d-flex justify-content-between align-items-center">
                         <div class="room_heading_inner">
-                            <span>From Rs.10000/night</span>
+                            
                             <h3>Deluxe Room</h3>
                         </div>
                         <a href="RoomBooking.php" class="line-button">book now</a>
@@ -411,7 +543,7 @@
                     <img src="img/rooms/3.png" alt="">
                     <div class="room_heading d-flex justify-content-between align-items-center">
                         <div class="room_heading_inner">
-                            <span>From Rs.5000/night</span>
+                            
                             <h3>Signature Room</h3>
                         </div>
                         <a href="RoomBooking.php" class="line-button">book now</a>
@@ -423,7 +555,7 @@
                     <img src="img/rooms/4.png" alt="">
                     <div class="room_heading d-flex justify-content-between align-items-center">
                         <div class="room_heading_inner">
-                            <span>From Rs.7500/night</span>
+                            
                             <h3>Couple Room</h3>
                         </div>
                         <a href="RoomBooking.php" class="line-button">book now</a>

@@ -461,7 +461,7 @@ $db->closeConnection();
                                 <option value="<?php echo $room['room_id']; ?>" 
                                         data-max-adults="<?php echo $room['max_adults']; ?>" 
                                         data-max-children="<?php echo $room['max_children']; ?>">
-                                    <?php echo htmlspecialchars($room['room_type']) . " ($" . $room['price'] . "/night)"; ?>
+                                    <?php echo htmlspecialchars($room['room_type']) . " (LKR " . $room['price'] . "/night)"; ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
