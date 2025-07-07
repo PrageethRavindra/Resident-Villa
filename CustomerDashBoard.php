@@ -680,7 +680,7 @@ $offset = ($page - 1) * $recordsPerPage;
                     <?php
                     try {
                         $db = new DatabaseConnection();
-                        $sql = "SELECT COUNT(*) AS total FROM RoomBookings WHERE status = 'confirmed'";
+                        $sql = "SELECT COUNT(*) AS total FROM Bookings WHERE status = 'confirmed'";
                         $result = $db->conn->query($sql);
                         
                         if ($result && $result->num_rows > 0) {
@@ -809,7 +809,7 @@ $offset = ($page - 1) * $recordsPerPage;
                                 
                                 // Main query with pagination
                                 $sql = "SELECT c.customer_id, c.first_name, c.last_name, c.email, c.phone, c.address, c.created_at,
-                                        (SELECT COUNT(*) FROM RoomBookings rb WHERE rb.customer_id = c.customer_id) AS room_bookings,
+                                        (SELECT COUNT(*) FROM Bookings rb WHERE rb.customer_id = c.customer_id) AS room_bookings,
                                         (SELECT COUNT(*) FROM RideBookings ride WHERE ride.customer_id = c.customer_id) AS ride_bookings
                                         FROM Customers c 
                                         $whereClause 

@@ -81,14 +81,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $total_adults = 0;
                     $total_children = 0;
                     $available_rooms = [];
+                    $selected_room_ids = [];
+                    $is_entire_villa = false;
+
+                    // Check if Entire Villa is selected
+                    foreach ($rooms as $room) {
+                        $room_id = (int)$room['room_id'];
+                        $stmt = $conn->prepare("SELECT room_type FROM HotelRoom WHERE room_id = ?");
+                        $stmt->bind_param("i", $room_id);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $room_data = $result->fetch_assoc();
+                        $stmt->close();
+
+                        if ($room_data['room_type'] === 'Entire Villa') {
+                            $is_entire_villa = true;
+                            break;
+                        }
+                    }
 
                     foreach ($rooms as $room) {
                         $room_id = (int)$room['room_id'];
                         $adults = (int)$room['adults'];
                         $children = (int)$room['children'];
 
+                        // Check for duplicate room types
+                        if (in_array($room_id, $selected_room_ids)) {
+                            throw new Exception("Cannot select the same room type multiple times: Room ID $room_id");
+                        }
+                        $selected_room_ids[] = $room_id;
+
                         // Validate room exists and get capacity
-                        $stmt = $conn->prepare("SELECT max_adults, max_children, price FROM HotelRoom WHERE room_id = ?");
+                        $stmt = $conn->prepare("SELECT max_adults, max_children, price, room_type FROM HotelRoom WHERE room_id = ?");
                         $stmt->bind_param("i", $room_id);
                         $stmt->execute();
                         $result = $stmt->get_result();
@@ -104,24 +128,71 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         }
 
                         // Check availability
-                        $stmt = $conn->prepare("
-                            SELECT br.room_id 
-                            FROM BookedRooms br 
-                            JOIN Bookings b ON br.booking_id = b.booking_id
-                            WHERE br.room_id = ?
-                            AND (
-                                (b.checkin_date <= ? AND b.checkout_date > ?) 
-                                OR (b.checkin_date < ? AND b.checkout_date >= ?)
-                                OR (b.checkin_date >= ? AND b.checkout_date <= ?)
-                            )
-                        ");
-                        $stmt->bind_param("issssss", $room_id, $checkOut, $checkIn, $checkOut, $checkIn, $checkIn, $checkOut);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        if ($result->num_rows > 0) {
-                            throw new Exception("Room ID $room_id is not available for selected dates");
+                        if ($is_entire_villa && $room_data['room_type'] !== 'Entire Villa') {
+                            throw new Exception("Cannot book other rooms when Entire Villa is selected");
                         }
-                        $stmt->close();
+
+                        if ($room_data['room_type'] === 'Entire Villa') {
+                            // Check if any rooms are booked for the selected dates
+                            $stmt = $conn->prepare("
+                                SELECT br.room_id 
+                                FROM BookedRooms br 
+                                JOIN Bookings b ON br.booking_id = b.booking_id
+                                WHERE (
+                                    (b.checkin_date <= ? AND b.checkout_date > ?) 
+                                    OR (b.checkin_date < ? AND b.checkout_date >= ?)
+                                    OR (b.checkin_date >= ? AND b.checkout_date <= ?)
+                                )
+                            ");
+                            $stmt->bind_param("ssssss", $checkOut, $checkIn, $checkOut, $checkIn, $checkIn, $checkOut);
+                            $stmt->execute();
+                            $result = $stmt->get_result();
+                            if ($result->num_rows > 0) {
+                                throw new Exception("Entire Villa cannot be booked as other rooms are already booked for selected dates");
+                            }
+                            $stmt->close();
+                        } else {
+                            // Check if Entire Villa is booked for the selected dates
+                            $stmt = $conn->prepare("
+                                SELECT br.room_id 
+                                FROM BookedRooms br 
+                                JOIN Bookings b ON br.booking_id = b.booking_id
+                                JOIN HotelRoom hr ON br.room_id = hr.room_id
+                                WHERE hr.room_type = 'Entire Villa'
+                                AND (
+                                    (b.checkin_date <= ? AND b.checkout_date > ?) 
+                                    OR (b.checkin_date < ? AND b.checkout_date >= ?)
+                                    OR (b.checkin_date >= ? AND b.checkout_date <= ?)
+                                )
+                            ");
+                            $stmt->bind_param("ssssss", $checkOut, $checkIn, $checkOut, $checkIn, $checkIn, $checkOut);
+                            $stmt->execute();
+                            $result = $stmt->get_result();
+                            if ($result->num_rows > 0) {
+                                throw new Exception("Cannot book this room as Entire Villa is already booked for selected dates");
+                            }
+                            $stmt->close();
+
+                            // Regular room availability check
+                            $stmt = $conn->prepare("
+                                SELECT br.room_id 
+                                FROM BookedRooms br 
+                                JOIN Bookings b ON br.booking_id = b.booking_id
+                                WHERE br.room_id = ?
+                                AND (
+                                    (b.checkin_date <= ? AND b.checkout_date > ?) 
+                                    OR (b.checkin_date < ? AND b.checkout_date >= ?)
+                                    OR (b.checkin_date >= ? AND b.checkout_date <= ?)
+                                )
+                            ");
+                            $stmt->bind_param("issssss", $room_id, $checkOut, $checkIn, $checkOut, $checkIn, $checkIn, $checkOut);
+                            $stmt->execute();
+                            $result = $stmt->get_result();
+                            if ($result->num_rows > 0) {
+                                throw new Exception("Room ID $room_id is not available for selected dates");
+                            }
+                            $stmt->close();
+                        }
 
                         $total_adults += $adults;
                         $total_children += $children;
@@ -227,7 +298,7 @@ $db->closeConnection();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta	loc="no-referrer-when-downgrade">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Room Booking - Hotel Reservation</title>
     <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
@@ -296,24 +367,24 @@ $db->closeConnection();
         
         .form-group input,
         .form-group select {
-    width: 100%;
-    padding: 14px 16px;
-    border: 1px solid rgba(0, 123, 255, 0.3);
-    border-radius: 8px;
-    font-size: 16px;
-    background: rgba(255, 255, 255, 0.85);
-    color: #2c3e50;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(0, 123, 255, 0.3);
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.85);
+            color: #2c3e50;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
         
         .form-group input:focus,
         .form-group select:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
-    background: #fff;
-}
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+            background: #fff;
+        }
         
         .form-group select {
             cursor: pointer;
@@ -348,31 +419,30 @@ $db->closeConnection();
         }
         
         .submit-btn {
-    width: 100%;
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.6), rgba(0, 86, 179, 0.6));
-    color: #ffffff;
-    border: 1px solid rgba(0, 123, 255, 0.4);
-    padding: 16px 24px;
-    border-radius: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    text-transform: uppercase;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 16px;
-    box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
-}
-.submit-btn:hover {
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.8), rgba(0, 86, 179, 0.8));
-    box-shadow: 0 10px 30px rgba(0, 123, 255, 0.4);
-    transform: translateY(-2px);
-}
-.submit-btn:active {
-    transform: translateY(0);
-}
-
+            width: 100%;
+            background: linear-gradient(135deg, rgba(0, 123, 255, 0.6), rgba(0, 86, 179, 0.6));
+            color: #ffffff;
+            border: 1px solid rgba(0, 123, 255, 0.4);
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 16px;
+            box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+        }
+        .submit-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 123, 255, 0.8), rgba(0, 86, 179, 0.8));
+            box-shadow: 0 10px 30px rgba(0, 123, 255, 0.4);
+            transform: translateY(-2px);
+        }
+        .submit-btn:active {
+            transform: translateY(0);
+        }
         
         .success-message {
             background: linear-gradient(135deg, #28a745, #20c997);
@@ -455,12 +525,13 @@ $db->closeConnection();
                     <span class="remove-room" onclick="removeRoom(this)">×</span>
                     <div class="form-group">
                         <label>Room Type</label>
-                        <select name="rooms[0][room_id]" required>
+                        <select name="rooms[0][room_id]" class="room-type-select" required onchange="updateRoomOptions(this)">
                             <option value="">Select room type</option>
                             <?php foreach ($room_types as $room): ?>
                                 <option value="<?php echo $room['room_id']; ?>" 
                                         data-max-adults="<?php echo $room['max_adults']; ?>" 
-                                        data-max-children="<?php echo $room['max_children']; ?>">
+                                        data-max-children="<?php echo $room['max_children']; ?>"
+                                        data-room-type="<?php echo htmlspecialchars($room['room_type']); ?>">
                                     <?php echo htmlspecialchars($room['room_type']) . " (LKR " . $room['price'] . "/night)"; ?>
                                 </option>
                             <?php endforeach; ?>
@@ -468,11 +539,11 @@ $db->closeConnection();
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Adults</label>
+                            <label>Adults (Max: <span class="max-adults">10</span>)</label>
                             <input type="number" name="rooms[0][adults]" min="0" max="10" value="1" required>
                         </div>
                         <div class="form-group">
-                            <label>Children</label>
+                            <label>Children (Max: <span class="max-children">10</span>)</label>
                             <input type="number" name="rooms[0][children]" min="0" max="10" value="0" required>
                         </div>
                     </div>
@@ -524,36 +595,101 @@ $db->closeConnection();
             <span class="remove-room" onclick="removeRoom(this)">×</span>
             <div class="form-group">
                 <label>Room Type</label>
-                <select name="rooms[${roomCount}][room_id]" required>
+                <select name="rooms[${roomCount}][room_id]" class="room-type-select" required onchange="updateRoomOptions(this)">
                     <option value="">Select room type</option>
                     <?php foreach ($room_types as $room): ?>
                         <option value="<?php echo $room['room_id']; ?>" 
                                 data-max-adults="<?php echo $room['max_adults']; ?>" 
-                                data-max-children="<?php echo $room['max_children']; ?>">
-                            <?php echo htmlspecialchars($room['room_type']) . " ($" . $room['price'] . "/night)"; ?>
+                                data-max-children="<?php echo $room['max_children']; ?>"
+                                data-room-type="<?php echo htmlspecialchars($room['room_type']); ?>">
+                            <?php echo htmlspecialchars($room['room_type']) . " (LKR " . $room['price'] . "/night)"; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Adults</label>
+                    <label>Adults (Max: <span class="max-adults">10</span>)</label>
                     <input type="number" name="rooms[${roomCount}][adults]" min="0" max="10" value="1" required>
                 </div>
                 <div class="form-group">
-                    <label>Children</label>
+                    <label>Children (Max: <span class="max-children">10</span>)</label>
                     <input type="number" name="rooms[${roomCount}][children]" min="0" max="10" value="0" required>
                 </div>
             </div>
         `;
         roomSelections.appendChild(newRoom);
         roomCount++;
+        updateRoomOptions();
     }
 
     function removeRoom(element) {
         if (document.querySelectorAll('.room-selection').length > 1) {
             element.parentElement.remove();
+            updateRoomOptions();
         }
+    }
+
+    function updateRoomOptions(selectElement) {
+        const selects = document.querySelectorAll('.room-type-select');
+        const selectedValues = Array.from(selects)
+            .map(select => select.value)
+            .filter(value => value !== '');
+        const selectedRoomTypes = Array.from(selects)
+            .map(select => select.selectedOptions[0]?.dataset.roomType)
+            .filter(type => type !== undefined);
+
+        const isEntireVillaSelected = selectedRoomTypes.includes('Entire Villa');
+
+        selects.forEach(select => {
+            const options = select.querySelectorAll('option');
+            options.forEach(option => {
+                if (option.value !== '') {
+                    const isEntireVillaOption = option.dataset.roomType === 'Entire Villa';
+                    if (isEntireVillaSelected && !isEntireVillaOption) {
+                        // Disable all other rooms if Entire Villa is selected
+                        option.disabled = true;
+                        option.style.display = 'none';
+                    } else if (!isEntireVillaSelected && selectedRoomTypes.length > 0 && isEntireVillaOption) {
+                        // Disable Entire Villa if any other room is selected
+                        option.disabled = true;
+                        option.style.display = 'none';
+                    } else if (selectedValues.includes(option.value) && option.value !== select.value) {
+                        // Disable duplicate selections
+                        option.disabled = true;
+                        option.style.display = 'none';
+                    } else {
+                        option.disabled = false;
+                        option.style.display = '';
+                    }
+                }
+            });
+
+            // Update max adults and children display
+            if (select === selectElement && select.value !== '') {
+                const roomSelection = select.closest('.room-selection');
+                const maxAdultsSpan = roomSelection.querySelector('.max-adults');
+                const maxChildrenSpan = roomSelection.querySelector('.max-children');
+                const selectedOption = select.selectedOptions[0];
+                const maxAdults = selectedOption.dataset.maxAdults || 10;
+                const maxChildren = selectedOption.dataset.maxChildren || 10;
+                
+                maxAdultsSpan.textContent = maxAdults;
+                maxChildrenSpan.textContent = maxChildren;
+                
+                const adultsInput = roomSelection.querySelector('input[name*="[adults]"]');
+                const childrenInput = roomSelection.querySelector('input[name*="[children]"]');
+                adultsInput.max = maxAdults;
+                childrenInput.max = maxChildren;
+                
+                if (parseInt(adultsInput.value) > maxAdults) adultsInput.value = maxAdults;
+                if (parseInt(childrenInput.value) > maxChildren) childrenInput.value = maxChildren;
+            }
+        });
+
+        // Disable add room button if Entire Villa is selected
+        const addRoomBtn = document.querySelector('.add-room-btn');
+        addRoomBtn.disabled = isEntireVillaSelected;
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -587,17 +723,7 @@ $db->closeConnection();
             // Dynamic input validation
             document.getElementById('room-selections').addEventListener('change', function(e) {
                 if (e.target.tagName === 'SELECT' && e.target.name.includes('[room_id]')) {
-                    const roomSelection = e.target.closest('.room-selection');
-                    const adultsInput = roomSelection.querySelector('input[name*="[adults]"]');
-                    const childrenInput = roomSelection.querySelector('input[name*="[children]"]');
-                    const maxAdults = parseInt(e.target.selectedOptions[0].dataset.maxAdults) || 10;
-                    const maxChildren = parseInt(e.target.selectedOptions[0].dataset.maxChildren) || 10;
-                    
-                    adultsInput.max = maxAdults;
-                    childrenInput.max = maxChildren;
-                    
-                    if (parseInt(adultsInput.value) > maxAdults) adultsInput.value = maxAdults;
-                    if (parseInt(childrenInput.value) > maxChildren) childrenInput.value = maxChildren;
+                    updateRoomOptions(e.target);
                 }
             });
         }
